@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+
+    <GridView
+        android:id="@+id/gridItems"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:numColumns="2"
+        android:layout_marginStart="40dp"
+        android:layout_marginEnd="40dp"
+        android:layout_marginTop="90dp"
+        android:horizontalSpacing="10dp"
+        android:verticalSpacing="10dp"
+        android:columnWidth="1dp"
+        >
+    </GridView>
+    <View
+        android:id="@+id/divider"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_marginTop="57dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginEnd="40dp"
+        android:background="?android:attr/listDivider" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:nestedScrollingEnabled="false"
+        android:id="@+id/dailyTaskListRec"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginEnd="40dp"
+        android:overScrollMode="never"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"/>
+
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="0dp"
+        android:layout_marginStart="21dp"
+        android:layout_marginEnd="21dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/rounded_navigation_bar"
+        app:itemHorizontalPadding="0dp"
+        app:itemIconSize="24dp"
+        app:itemVerticalPadding="0dp"
+        app:labelVisibilityMode="unlabeled"
+        app:menu="@menu/bottom_nav_bar" />
+</LinearLayout>

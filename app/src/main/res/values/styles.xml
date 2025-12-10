@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="NavBar.NoPadding" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="itemIconSize">28dp</item>
+
+        <!-- Remove item padding -->
+        <item name="itemPaddingTop">0dp</item>
+        <item name="itemPaddingBottom">0dp</item>
+        <item name="itemHorizontalPadding">0dp</item>
+        <item name="itemVerticalPadding">0dp</item>
+
+        <!-- Remove label insets -->
+        <item name="itemShapeInsetTop">0dp</item>
+        <item name="itemShapeInsetBottom">0dp</item>
+
+        <!-- Remove container padding -->
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+
+        <!-- Hide labels -->
+        <item name="labelVisibilityMode">unlabeled</item>
+    </style>
+
+</resources>
