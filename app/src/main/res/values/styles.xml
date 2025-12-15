@@ -22,4 +22,9 @@
         <item name="labelVisibilityMode">unlabeled</item>
     </style>
 
+    <style name="ShapeAppearanceOverlay_Circle">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
 </resources>

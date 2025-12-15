@@ -1,6 +1,8 @@
 package com.example.guider
 
 import android.os.Bundle
+import android.view.View
+import android.widget.ImageButton
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import com.example.guider.databinding.ActivityMainBinding
@@ -9,10 +11,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.guider.models.DailyTask
 import com.example.guider.models.TaskCategory
 import com.example.guider.models.Tile
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var navButtons: List<ImageButton>
+    private lateinit var navIndicator: View
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,6 +33,7 @@ class MainActivity : AppCompatActivity() {
             Tile(0, TaskCategory.OTHER.displayName, "#3A3A34".toColorInt(), 0.36, R.drawable.other_icon)
         )
         binding.gridItems.adapter = CustomTileAdapter(this, tiles)
+        navIndicator = binding.navIndicator
 
         val tasks = listOf<DailyTask>(
             DailyTask(TaskCategory.HEALTH, "Drink water", false),
@@ -53,5 +60,43 @@ class MainActivity : AppCompatActivity() {
         val adapter = CustomDailyTaskAdapter(tasks)
         recyclerView.adapter = adapter
 
+        navButtons = listOf(
+            binding.navTasks,
+            binding.navSleep,
+            binding.navStats,
+            binding.navCalendar,
+            binding.navMoney
+        )
+
+        navButtons.forEachIndexed { index, button ->
+            button.setOnClickListener {
+            moveIndicatorTo(index)
+        } }
+
+        navIndicator.post {
+            moveIndicatorTo(0, animate = false)
+        }
+
+    }
+
+    private fun moveIndicatorTo(index: Int, animate: Boolean = true) {
+        val target = navButtons[index]
+
+        val targetCenterX =
+            target.x + target.width / 2f - navIndicator.width / 2f
+
+        if (animate) {
+            navIndicator.animate()
+                .translationX(targetCenterX)
+                .setDuration(260)
+                .setInterpolator(FastOutSlowInInterpolator())
+                .start()
+        } else {
+            navIndicator.translationX = targetCenterX
+        }
+
+        navButtons.forEachIndexed { i, button ->
+            button.isSelected = i == index
+        }
     }
 }
