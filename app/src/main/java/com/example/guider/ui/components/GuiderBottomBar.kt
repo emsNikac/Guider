@@ -1,5 +1,6 @@
 package com.example.guider.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -26,6 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
@@ -35,6 +38,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import com.example.guider.ui.GuiderDestination
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 internal fun GuiderBottomBar(
     selectedDestination: GuiderDestination,
@@ -46,6 +50,16 @@ internal fun GuiderBottomBar(
             .navigationBarsPadding()
             .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 12.dp),
     ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(4.dp)
+                .blur(8.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                .background(
+                    color = MaterialTheme.colorScheme.background.copy(alpha = 0.68f),
+                    shape = RoundedCornerShape(30.dp),
+                ),
+        )
         Surface(
             modifier = Modifier
                 .fillMaxWidth()

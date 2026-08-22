@@ -54,6 +54,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.guider.domain.sleep.ActiveSleepSession
 import com.example.guider.domain.sleep.SleepCycleCalculator
 import com.example.guider.domain.sleep.SleepCycleSuggestion
+import com.example.guider.ui.components.NavigationPillListBottomPadding
+import com.example.guider.ui.components.navigationPillItem
+import com.example.guider.ui.components.navigationPillScrollEffect
 import kotlinx.coroutines.delay
 import java.text.DateFormat as JavaDateFormat
 import java.util.Calendar
@@ -136,11 +139,18 @@ private fun SleepCalculatorScreen(
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 28.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .navigationPillScrollEffect(),
+        contentPadding = PaddingValues(
+            start = 24.dp,
+            top = 22.dp,
+            end = 24.dp,
+            bottom = NavigationPillListBottomPadding,
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
+        navigationPillItem("sleep_header") {
             Text(
                 text = "Sleep calculator",
                 style = MaterialTheme.typography.headlineLarge,
@@ -153,7 +163,7 @@ private fun SleepCalculatorScreen(
             )
         }
 
-        item {
+        navigationPillItem("sleep_reference_time") {
             ReferenceTimeCard(
                 referenceTimeEpochMillis = referenceTimeEpochMillis,
                 isUsingDeviceTime = isUsingDeviceTime,
@@ -162,7 +172,7 @@ private fun SleepCalculatorScreen(
             )
         }
 
-        item {
+        navigationPillItem("sleep_suggestion_title") {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = "Suggested wake-up times",
@@ -177,7 +187,9 @@ private fun SleepCalculatorScreen(
         }
 
         suggestions.take(4).chunked(2).forEach { rowSuggestions ->
-            item {
+            navigationPillItem(
+                itemKey = "sleep_cycle_row_${rowSuggestions.first().cycleCount}",
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -192,7 +204,7 @@ private fun SleepCalculatorScreen(
             }
         }
 
-        item {
+        navigationPillItem("sleep_recommended_cycles") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -206,11 +218,11 @@ private fun SleepCalculatorScreen(
             }
         }
 
-        item {
+        navigationPillItem("sleep_divider") {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
 
-        item {
+        navigationPillItem("sleep_hibernation") {
             HibernationCard(
                 activeSession = activeSession,
                 notificationPermissionDenied = notificationPermissionDenied,
@@ -219,7 +231,7 @@ private fun SleepCalculatorScreen(
             )
         }
 
-        item {
+        navigationPillItem("sleep_history") {
             SleepHistoryCard(records = history)
         }
     }

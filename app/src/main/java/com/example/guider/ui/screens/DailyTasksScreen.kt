@@ -1,5 +1,8 @@
 package com.example.guider.ui.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -28,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +48,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.guider.models.DailyTask
 import com.example.guider.models.TaskCategory
+import com.example.guider.ui.components.NavigationPillListBottomPadding
+import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.ui.theme.taskCategoryPalette
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -60,8 +67,13 @@ fun DailyTasksScreen(
         tasks.filter { it.taskCategory == category }
     } ?: tasks
     val completeCount = tasks.count { it.isFinished }
+    val taskListState = rememberLazyListState()
     val dateLabel = remember {
         SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
+    }
+
+    LaunchedEffect(selectedCategory) {
+        taskListState.scrollToItem(0)
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -92,14 +104,21 @@ fun DailyTasksScreen(
         )
 
         LazyColumn(
+            state = taskListState,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
+                .weight(1f)
+                .navigationPillScrollEffect(),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = 5.dp,
+                end = 24.dp,
+                bottom = NavigationPillListBottomPadding,
+            ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (filteredTasks.isEmpty()) {
-                item {
+                item(key = DAILY_TASKS_EMPTY_KEY) {
                     EmptyTaskCard(category = selectedCategory)
                 }
             } else {
@@ -116,6 +135,8 @@ fun DailyTasksScreen(
         }
     }
 }
+
+private const val DAILY_TASKS_EMPTY_KEY = "daily_tasks_empty"
 
 @Composable
 private fun DailyHeader(dateLabel: String) {
@@ -151,6 +172,11 @@ private fun CompactProgressRow(
     totalCount: Int,
 ) {
     val progress = if (totalCount == 0) 0f else completeCount.toFloat() / totalCount
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+        label = "Today's task progress",
+    )
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -177,7 +203,7 @@ private fun CompactProgressRow(
                 )
             }
             LinearProgressIndicator(
-                progress = { progress },
+                progress = { animatedProgress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(5.dp)
@@ -275,10 +301,11 @@ private fun CategoryTile(
 private fun DailyTaskCard(
     task: DailyTask,
     onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     ElevatedCard(
         onClick = { onCheckedChange(!task.isFinished) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,

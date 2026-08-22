@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">guider</string>
+    <string name="app_name">Guider</string>
     <string name="sleep_notification_channel">Sleep tracking</string>
     <string name="sleep_notification_channel_description">Shows an active hibernation session and lets you save it when you wake up.</string>
     <string name="hibernation_notification_title">Hibernation active</string>

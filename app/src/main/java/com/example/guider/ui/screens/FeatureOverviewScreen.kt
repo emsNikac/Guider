@@ -23,6 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.example.guider.ui.components.NavigationPillListBottomPadding
+import com.example.guider.ui.components.navigationPillItem
+import com.example.guider.ui.components.navigationPillScrollEffect
 
 @Composable
 fun FeatureOverviewScreen(
@@ -35,16 +38,18 @@ fun FeatureOverviewScreen(
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .navigationPillScrollEffect(),
         contentPadding = PaddingValues(
             start = 24.dp,
             top = 28.dp,
             end = 24.dp,
-            bottom = 28.dp,
+            bottom = NavigationPillListBottomPadding,
         ),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        item {
+        navigationPillItem("${title}_header") {
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineLarge,
@@ -58,7 +63,7 @@ fun FeatureOverviewScreen(
             )
         }
 
-        item {
+        navigationPillItem("${title}_primary_card") {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp),
@@ -94,7 +99,7 @@ fun FeatureOverviewScreen(
             }
         }
 
-        item {
+        navigationPillItem("${title}_features") {
             Text(
                 text = "Planned foundation",
                 style = MaterialTheme.typography.titleLarge,
@@ -109,7 +114,7 @@ fun FeatureOverviewScreen(
             }
         }
 
-        item {
+        navigationPillItem("${title}_footer") {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
