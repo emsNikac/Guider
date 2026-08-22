@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">guider</string>
+    <string name="sleep_notification_channel">Sleep tracking</string>
+    <string name="sleep_notification_channel_description">Shows an active hibernation session and lets you save it when you wake up.</string>
+    <string name="hibernation_notification_title">Hibernation active</string>
+    <string name="hibernation_notification_text">Sleep timing begins at %1$s. Tap when you’re awake.</string>
+    <string name="hibernation_notification_action">I’m awake</string>
+    <string name="wake_prompt_notification_channel">Wake-up confirmation</string>
+    <string name="wake_prompt_notification_channel_description">Asks whether you are awake after five sleep cycles.</string>
+    <string name="wake_prompt_notification_title">Are you awake?</string>
+    <string name="wake_prompt_notification_text">Tap to stop hibernation and save your sleep time.</string>
 </resources>

@@ -1,7 +1,8 @@
 package com.example.guider.models
 
-class DailyTask(
+data class DailyTask(
+    val id: Int,
     val taskCategory: TaskCategory,
     val title: String,
-    var isFinished: Boolean
+    val isFinished: Boolean
 )
