@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.guider.models.DailyTask
 import com.example.guider.models.TaskCategory
+import com.example.guider.domain.goals.Goal
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.ui.theme.taskCategoryPalette
@@ -60,7 +63,8 @@ fun DailyTasksScreen(
     tasks: List<DailyTask>,
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
-    onTaskCheckedChange: (Int, Boolean) -> Unit,
+    onTaskCheckedChange: (Long, Boolean) -> Unit,
+    goalTitlesById: Map<Long, String> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     val filteredTasks = selectedCategory?.let { category ->
@@ -128,6 +132,7 @@ fun DailyTasksScreen(
                 ) { task ->
                     DailyTaskCard(
                         task = task,
+                        linkedGoalTitle = task.linkedGoalId?.let(goalTitlesById::get),
                         onCheckedChange = { onTaskCheckedChange(task.id, it) },
                     )
                 }
@@ -300,6 +305,7 @@ private fun CategoryTile(
 @Composable
 private fun DailyTaskCard(
     task: DailyTask,
+    linkedGoalTitle: String?,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -341,6 +347,15 @@ private fun DailyTaskCard(
                     textDecoration = if (task.isFinished) TextDecoration.LineThrough else null,
                 )
                 CategoryBadge(category = task.taskCategory)
+                linkedGoalTitle?.let { title ->
+                    Text(
+                        text = "Goal · $title",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -415,16 +430,38 @@ private fun SectionTitle(
 @Composable
 fun AddTaskDialog(
     onDismiss: () -> Unit,
-    onAddTask: (String, TaskCategory) -> Unit,
+    onAddTask: (String, TaskCategory, Long?) -> Unit,
+    availableGoals: List<Goal> = emptyList(),
+    initialLinkedGoalId: Long? = null,
+    goalSelectionEnabled: Boolean = true,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf(TaskCategory.HEALTH) }
+    var linkedGoalId by rememberSaveable(initialLinkedGoalId) {
+        mutableStateOf(initialLinkedGoalId)
+    }
+    val initialGoalTitle = availableGoals.firstOrNull { it.id == initialLinkedGoalId }?.title
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add a daily task") },
+        title = {
+            Text(if (initialLinkedGoalId == null) "Add a daily task" else "Add a goal task")
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (!goalSelectionEnabled && initialGoalTitle != null) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ) {
+                        Text(
+                            text = "Linked to $initialGoalTitle",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
                 androidx.compose.material3.OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -432,6 +469,13 @@ fun AddTaskDialog(
                     label = { Text("Task name") },
                     singleLine = true,
                 )
+                if (goalSelectionEnabled) {
+                    GoalLinkSelector(
+                        goals = availableGoals,
+                        selectedGoalId = linkedGoalId,
+                        onSelected = { linkedGoalId = it },
+                    )
+                }
                 Text(
                     text = "Category",
                     style = MaterialTheme.typography.labelLarge,
@@ -455,7 +499,7 @@ fun AddTaskDialog(
         },
         confirmButton = {
             androidx.compose.material3.Button(
-                onClick = { onAddTask(title.trim(), category) },
+                onClick = { onAddTask(title.trim(), category, linkedGoalId) },
                 enabled = title.isNotBlank(),
             ) {
                 Text("Add task")
@@ -467,6 +511,82 @@ fun AddTaskDialog(
             }
         },
     )
+}
+
+@Composable
+private fun GoalLinkSelector(
+    goals: List<Goal>,
+    selectedGoalId: Long?,
+    onSelected: (Long?) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("Linked goal (optional)", style = MaterialTheme.typography.labelLarge)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            GoalLinkChoice(
+                title = "No goal",
+                selected = selectedGoalId == null,
+                onClick = { onSelected(null) },
+            )
+            goals.forEach { goal ->
+                GoalLinkChoice(
+                    title = goal.title,
+                    selected = selectedGoalId == goal.id,
+                    onClick = { onSelected(goal.id) },
+                )
+            }
+        }
+        if (goals.isEmpty()) {
+            Text(
+                text = "Create an active goal to link future tasks.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GoalLinkChoice(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        border = BorderStroke(
+            width = if (selected) 2.dp else 1.dp,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        ),
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable

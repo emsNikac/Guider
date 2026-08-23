@@ -35,4 +35,15 @@ class HabitStreakCalculatorTest {
 
         assertEquals(0, result)
     }
+
+    @Test
+    fun `a missed latest scheduled day resets when today is not scheduled`() {
+        val result = HabitStreakCalculator.currentStreak(
+            completedDayKeys = setOf(14, 13, 12),
+            dayKeysNewestFirst = newestDays,
+            allowIncompleteFirstDay = false,
+        )
+
+        assertEquals(0, result)
+    }
 }

@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.core.content.edit
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitRepository
+import com.example.guider.domain.habits.HabitWeekday
+import com.example.guider.domain.habits.isScheduledOn
+import com.example.guider.domain.time.DayKeys
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,12 +21,22 @@ class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
     override val habits: StateFlow<List<Habit>> = mutableHabits.asStateFlow()
 
     @Synchronized
-    override fun addHabit(name: String): Habit {
+    override fun addHabit(
+        name: String,
+        scheduledWeekdays: Set<HabitWeekday>,
+        linkedGoalId: Long?,
+        activeStartDayKey: Int?,
+        activeEndDayKey: Int?,
+    ): Habit {
         val id = (mutableHabits.value.maxOfOrNull(Habit::id) ?: 0L) + 1L
         val habit = Habit(
             id = id,
             name = name.trim(),
             colorHue = mostDistinctHue(mutableHabits.value),
+            scheduledWeekdays = scheduledWeekdays.ifEmpty { HabitWeekday.entries.toSet() },
+            linkedGoalId = linkedGoalId,
+            activeStartDayKey = activeStartDayKey,
+            activeEndDayKey = activeEndDayKey,
         )
         persist(mutableHabits.value + habit)
         return habit
@@ -35,6 +48,8 @@ class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
             if (habit.id != habitId) {
                 habit
             } else {
+                val weekday = HabitWeekday.fromCalendarValue(DayKeys.weekday(dayKey))
+                if (!habit.isScheduledOn(dayKey, weekday)) return@map habit
                 val completedDays = habit.completedDayKeys.toMutableSet().apply {
                     if (!add(dayKey)) remove(dayKey)
                 }
@@ -47,6 +62,27 @@ class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
     @Synchronized
     override fun deleteHabit(habitId: Long) {
         persist(mutableHabits.value.filterNot { it.id == habitId })
+    }
+
+    @Synchronized
+    override fun deleteHabitsForGoal(goalId: Long) {
+        persist(mutableHabits.value.filterNot { it.linkedGoalId == goalId })
+    }
+
+    @Synchronized
+    override fun setGoalPeriod(goalId: Long, startDayKey: Int, endDayKey: Int) {
+        val current = mutableHabits.value
+        val updated = current.map { habit ->
+            if (habit.linkedGoalId == goalId) {
+                habit.copy(
+                    activeStartDayKey = startDayKey,
+                    activeEndDayKey = endDayKey,
+                )
+            } else {
+                habit
+            }
+        }
+        if (updated != current) persist(updated)
     }
 
     private fun readHabits(): List<Habit> {
@@ -67,6 +103,26 @@ class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
                                     add(completed.getInt(dayIndex))
                                 }
                             },
+                            scheduledWeekdays = item.optJSONArray(JSON_SCHEDULED_WEEKDAYS)
+                                ?.let { scheduled ->
+                                    buildSet {
+                                        repeat(scheduled.length()) { dayIndex ->
+                                            runCatching {
+                                                HabitWeekday.valueOf(scheduled.getString(dayIndex))
+                                            }.getOrNull()?.let(::add)
+                                        }
+                                    }.ifEmpty { HabitWeekday.entries.toSet() }
+                                }
+                                ?: HabitWeekday.entries.toSet(),
+                            linkedGoalId = if (item.isNull(JSON_LINKED_GOAL_ID)) {
+                                null
+                            } else {
+                                item.optLong(JSON_LINKED_GOAL_ID).takeIf { it > 0L }
+                            },
+                            activeStartDayKey = if (item.isNull(JSON_ACTIVE_START_DAY)) null
+                            else item.getInt(JSON_ACTIVE_START_DAY),
+                            activeEndDayKey = if (item.isNull(JSON_ACTIVE_END_DAY)) null
+                            else item.getInt(JSON_ACTIVE_END_DAY),
                         ),
                     )
                 }
@@ -88,6 +144,15 @@ class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
                     .put(JSON_ID, habit.id)
                     .put(JSON_NAME, habit.name)
                     .put(JSON_COLOR_HUE, habit.colorHue.toDouble())
+                    .put(
+                        JSON_SCHEDULED_WEEKDAYS,
+                        JSONArray().apply {
+                            habit.scheduledWeekdays.forEach { put(it.name) }
+                        },
+                    )
+                    .put(JSON_LINKED_GOAL_ID, habit.linkedGoalId ?: JSONObject.NULL)
+                    .put(JSON_ACTIVE_START_DAY, habit.activeStartDayKey ?: JSONObject.NULL)
+                    .put(JSON_ACTIVE_END_DAY, habit.activeEndDayKey ?: JSONObject.NULL)
                     .put(
                         JSON_COMPLETED_DAYS,
                         JSONArray().apply {
@@ -119,6 +184,10 @@ class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
         const val JSON_NAME = "name"
         const val JSON_COLOR_HUE = "colorHue"
         const val JSON_COMPLETED_DAYS = "completedDays"
+        const val JSON_SCHEDULED_WEEKDAYS = "scheduledWeekdays"
+        const val JSON_LINKED_GOAL_ID = "linkedGoalId"
+        const val JSON_ACTIVE_START_DAY = "activeStartDay"
+        const val JSON_ACTIVE_END_DAY = "activeEndDay"
 
         const val FULL_CIRCLE_DEGREES = 360
         const val DEFAULT_HUE = 210f

@@ -8,12 +8,15 @@ object HabitStreakCalculator {
     fun currentStreak(
         completedDayKeys: Set<Int>,
         dayKeysNewestFirst: List<Int>,
+        allowIncompleteFirstDay: Boolean = true,
     ): Int {
         if (dayKeysNewestFirst.isEmpty()) return 0
-        val daysToCount = if (dayKeysNewestFirst.first() in completedDayKeys) {
-            dayKeysNewestFirst
-        } else {
+        val daysToCount = if (
+            allowIncompleteFirstDay && dayKeysNewestFirst.first() !in completedDayKeys
+        ) {
             dayKeysNewestFirst.drop(1)
+        } else {
+            dayKeysNewestFirst
         }
         return daysToCount.takeWhile { it in completedDayKeys }.size
     }

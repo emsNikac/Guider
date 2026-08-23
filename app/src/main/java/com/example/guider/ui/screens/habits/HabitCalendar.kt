@@ -1,6 +1,7 @@
 package com.example.guider.ui.screens.habits
 
 import com.example.guider.domain.habits.HabitTrackerRange
+import com.example.guider.domain.habits.HabitWeekday
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -12,6 +13,7 @@ internal data class HabitDay(
     val fullLabel: String,
     val isToday: Boolean,
     val isFuture: Boolean,
+    val weekday: HabitWeekday,
 )
 
 internal data class HabitPeriod(
@@ -99,6 +101,9 @@ internal object HabitCalendar {
                         fullLabel = fullFormat.format(cursor.time),
                         isToday = dayKey(cursor) == dayKey(today),
                         isFuture = cursor.timeInMillis > today.timeInMillis,
+                        weekday = HabitWeekday.fromCalendarValue(
+                            cursor.get(Calendar.DAY_OF_WEEK),
+                        ),
                     ),
                 )
                 cursor.add(Calendar.DAY_OF_YEAR, 1)

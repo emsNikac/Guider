@@ -19,9 +19,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,12 +31,18 @@ import androidx.compose.ui.unit.dp
 import com.example.guider.R
 import com.example.guider.models.DailyTask
 import com.example.guider.models.TaskCategory
+import com.example.guider.domain.goals.Goal
+import com.example.guider.domain.goals.isActive
+import com.example.guider.domain.time.DayKeys
 import com.example.guider.ui.components.GuiderBottomBar
 import com.example.guider.ui.screens.AddTaskDialog
 import com.example.guider.ui.screens.DailyTasksScreen
 import com.example.guider.ui.screens.FeatureOverviewScreen
+import com.example.guider.ui.screens.goals.GoalsRoute
 import com.example.guider.ui.screens.habits.HabitsRoute
 import com.example.guider.ui.screens.sleep.SleepCalculatorRoute
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 
 enum class GuiderDestination(
     val label: String,
@@ -50,25 +55,24 @@ enum class GuiderDestination(
     MONEY("Money management", R.drawable.money_nav_ic),
 }
 
-private val starterTasks = listOf(
-    DailyTask(1, TaskCategory.HEALTH, "Drink water", false),
-    DailyTask(2, TaskCategory.HEALTH, "Take a 30 minute walk", true),
-    DailyTask(3, TaskCategory.WORK, "Write the project outline", false),
-    DailyTask(4, TaskCategory.MENTAL_HEALTH, "Meditate for 10 minutes", false),
-    DailyTask(5, TaskCategory.MENTAL_HEALTH, "Read before bed", false),
-    DailyTask(6, TaskCategory.OTHER, "Call family", true),
-)
-
 @Composable
 fun GuiderApp(
     destinationRequest: GuiderDestination? = null,
     onDestinationRequestConsumed: () -> Unit = {},
+    viewModel: GuiderViewModel = viewModel(),
 ) {
     var selectedDestination by remember { mutableStateOf(GuiderDestination.DAILY_TASKS) }
     var selectedCategory by remember { mutableStateOf<TaskCategory?>(null) }
     var showAddTaskDialog by remember { mutableStateOf(false) }
-    var nextTaskId by remember { mutableIntStateOf(starterTasks.size + 1) }
-    val tasks = remember { mutableStateListOf<DailyTask>().apply { addAll(starterTasks) } }
+    val tasks by viewModel.tasks.collectAsState()
+    val goals by viewModel.goals.collectAsState()
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            viewModel.refreshDayBoundContent()
+            delay(DayKeys.millisUntilTomorrow() + 1_000L)
+        }
+    }
 
     LaunchedEffect(destinationRequest) {
         destinationRequest?.let {
@@ -120,11 +124,9 @@ fun GuiderApp(
                     selectedCategory = if (selectedCategory == category) null else category
                 },
                 onTaskCheckedChange = { id, isFinished ->
-                    val index = tasks.indexOfFirst { it.id == id }
-                    if (index >= 0) {
-                        tasks[index] = tasks[index].copy(isFinished = isFinished)
-                    }
+                    viewModel.setTaskFinished(id, isFinished)
                 },
+                goals = goals,
             )
         }
     }
@@ -132,13 +134,9 @@ fun GuiderApp(
     if (showAddTaskDialog) {
         AddTaskDialog(
             onDismiss = { showAddTaskDialog = false },
-            onAddTask = { title, category ->
-                tasks += DailyTask(
-                    id = nextTaskId++,
-                    taskCategory = category,
-                    title = title,
-                    isFinished = false,
-                )
+            availableGoals = goals.filter { it.isActive(DayKeys.today()) },
+            onAddTask = { title, category, linkedGoalId ->
+                viewModel.addTask(title, category, linkedGoalId)
                 selectedCategory = null
                 showAddTaskDialog = false
             },
@@ -151,9 +149,10 @@ private fun DestinationContent(
     destination: GuiderDestination,
     contentPadding: PaddingValues,
     tasks: List<DailyTask>,
+    goals: List<Goal>,
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
-    onTaskCheckedChange: (Int, Boolean) -> Unit,
+    onTaskCheckedChange: (Long, Boolean) -> Unit,
 ) {
     val layoutDirection = LocalLayoutDirection.current
     val appliedPadding = PaddingValues(
@@ -172,6 +171,7 @@ private fun DestinationContent(
             selectedCategory = selectedCategory,
             onCategorySelected = onCategorySelected,
             onTaskCheckedChange = onTaskCheckedChange,
+            goalTitlesById = goals.associate { it.id to it.title },
             modifier = modifier,
         )
 
@@ -179,15 +179,7 @@ private fun DestinationContent(
 
         GuiderDestination.HABITS -> HabitsRoute(modifier = modifier)
 
-        GuiderDestination.BIGGER_GOALS -> FeatureOverviewScreen(
-            title = "Bigger goals",
-            subtitle = "Break long-term plans into achievable milestones.",
-            cardTitle = "Make the big picture manageable",
-            cardBody = "This space will connect meaningful goals to milestones and the next useful action.",
-            features = listOf("Goal milestones", "Target dates", "Progress overview"),
-            iconRes = destination.iconRes,
-            modifier = modifier,
-        )
+        GuiderDestination.BIGGER_GOALS -> GoalsRoute(modifier = modifier)
 
         GuiderDestination.MONEY -> FeatureOverviewScreen(
             title = "Money management",

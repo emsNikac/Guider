@@ -68,6 +68,7 @@ import com.example.guider.R
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitStreakCalculator
 import com.example.guider.domain.habits.HabitTrackerRange
+import com.example.guider.domain.habits.isScheduledOn
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import kotlinx.coroutines.delay
@@ -423,6 +424,7 @@ private fun CompactMonthHabitGrid(
                     ) {
                         days.forEach { day ->
                             val completed = day.key in habit.completedDayKeys
+                            val scheduled = habit.isScheduledOn(day.key, day.weekday)
                             Box(
                                 modifier = Modifier
                                     .width(dayColumnWidth)
@@ -436,6 +438,8 @@ private fun CompactMonthHabitGrid(
                                         .background(
                                             if (completed) {
                                                 color
+                                            } else if (!scheduled) {
+                                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.12f)
                                             } else {
                                                 MaterialTheme.colorScheme.outlineVariant.copy(
                                                     alpha = if (day.isFuture) 0.18f else 0.42f,
@@ -592,7 +596,11 @@ private fun HabitCompletionRow(
     Row {
         days.forEachIndexed { index, day ->
             val completed = day.key in habit.completedDayKeys
-            val completesWeek = !completed && days.all { visibleDay ->
+            val scheduled = habit.isScheduledOn(day.key, day.weekday)
+            val dueDays = days.filter {
+                !it.isFuture && habit.isScheduledOn(it.key, it.weekday)
+            }
+            val completesWeek = scheduled && !completed && dueDays.all { visibleDay ->
                 visibleDay.key == day.key || visibleDay.key in habit.completedDayKeys
             }
             HabitCompletionCell(
@@ -602,6 +610,7 @@ private fun HabitCompletionRow(
                 dayColumnWidth = dayColumnWidth,
                 completionSize = completionSize,
                 completed = completed,
+                scheduled = scheduled,
                 celebrationTrigger = celebrationTrigger,
                 celebrationIndex = index,
                 onToggle = {
@@ -621,13 +630,18 @@ private fun HabitCompletionCell(
     dayColumnWidth: Dp,
     completionSize: Dp,
     completed: Boolean,
+    scheduled: Boolean,
     celebrationTrigger: Int,
     celebrationIndex: Int,
     onToggle: () -> Unit,
 ) {
     val emptyAlpha = if (day.isFuture) 0.05f else 0.14f
     val cellColor by animateColorAsState(
-        targetValue = if (completed) color else color.copy(alpha = emptyAlpha),
+        targetValue = when {
+            completed -> color
+            !scheduled -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f)
+            else -> color.copy(alpha = emptyAlpha)
+        },
         animationSpec = tween(durationMillis = 280),
         label = "Habit completion fill",
     )
@@ -673,7 +687,7 @@ private fun HabitCompletionCell(
                 .clip(shape)
                 .toggleable(
                     value = completed,
-                    enabled = !day.isFuture,
+                    enabled = !day.isFuture && scheduled,
                     role = Role.Checkbox,
                     onValueChange = { onToggle() },
                 )
@@ -688,6 +702,7 @@ private fun HabitCompletionCell(
                 .semantics(mergeDescendants = true) {
                     contentDescription = "$habitName, ${day.fullLabel}"
                     stateDescription = when {
+                        !scheduled -> "Not scheduled"
                         day.isFuture -> "Not available yet"
                         completed -> "Completed"
                         else -> "Not completed"
@@ -731,13 +746,25 @@ private fun HabitStreaks(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         habits.forEach { habit ->
-            val streak = remember(habit.completedDayKeys, todayKey) {
+            val streak = remember(
+                habit.completedDayKeys,
+                habit.scheduledWeekdays,
+                todayKey,
+            ) {
                 HabitStreakCalculator.currentStreak(
                     completedDayKeys = habit.completedDayKeys,
                     dayKeysNewestFirst = HabitCalendar.recentDayKeys(
                         nowEpochMillis = nowEpochMillis,
-                        count = habit.completedDayKeys.size + 2,
-                    ),
+                        count = 366,
+                    ).filter { dayKey ->
+                        com.example.guider.domain.habits.HabitWeekday.fromCalendarValue(
+                            com.example.guider.domain.time.DayKeys.weekday(dayKey),
+                        ).let { weekday -> habit.isScheduledOn(dayKey, weekday) }
+                    },
+                    allowIncompleteFirstDay = com.example.guider.domain.habits.HabitWeekday
+                        .fromCalendarValue(
+                            com.example.guider.domain.time.DayKeys.weekday(todayKey),
+                        ).let { weekday -> habit.isScheduledOn(todayKey, weekday) },
                 )
             }
             val color = habitColor(habit)
@@ -765,7 +792,7 @@ private fun HabitStreaks(
                         fontWeight = FontWeight.Medium,
                     )
                     Text(
-                        text = if (streak == 1) "1 day" else "$streak days",
+                        text = if (streak == 1) "1 check-in" else "$streak check-ins",
                         style = MaterialTheme.typography.titleSmall,
                         color = color,
                     )
