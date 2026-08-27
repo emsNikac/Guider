@@ -2,9 +2,8 @@ package com.example.guider.ui.screens.habits
 
 import com.example.guider.domain.habits.HabitTrackerRange
 import com.example.guider.domain.habits.HabitWeekday
-import java.text.SimpleDateFormat
+import com.example.guider.util.LocalizedFormatters
 import java.util.Calendar
-import java.util.Locale
 
 internal data class HabitDay(
     val key: Int,
@@ -50,10 +49,9 @@ internal object HabitCalendar {
             add(Calendar.DAY_OF_YEAR, -daysFromMonday + offset * 7)
         }
         val days = buildDays(start = start, count = 7, today = today)
-        val monthFormat = SimpleDateFormat("MMM", Locale.getDefault())
-        val startMonth = monthFormat.format(start.time)
+        val startMonth = LocalizedFormatters.formatDate("MMM", start.timeInMillis)
         val endCalendar = (start.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 6) }
-        val endMonth = monthFormat.format(endCalendar.time)
+        val endMonth = LocalizedFormatters.formatDate("MMM", endCalendar.timeInMillis)
         val title = if (startMonth == endMonth) {
             "$startMonth ${start.get(Calendar.DAY_OF_MONTH)}–${endCalendar.get(Calendar.DAY_OF_MONTH)}"
         } else {
@@ -71,8 +69,8 @@ internal object HabitCalendar {
         val start = (end.clone() as Calendar).apply {
             add(Calendar.DAY_OF_YEAR, -(MONTH_VIEW_DAY_COUNT - 1))
         }
-        val titleFormat = SimpleDateFormat("MMM d", Locale.getDefault())
-        val title = "${titleFormat.format(start.time)} – ${titleFormat.format(end.time)}"
+        val title = "${LocalizedFormatters.formatDate("MMM d", start.timeInMillis)} – " +
+            LocalizedFormatters.formatDate("MMM d", end.timeInMillis)
         return HabitPeriod(
             title = title,
             days = buildDays(
@@ -88,17 +86,20 @@ internal object HabitCalendar {
         count: Int,
         today: Calendar,
     ): List<HabitDay> {
-        val shortDayFormat = SimpleDateFormat("EEE", Locale.getDefault())
-        val fullFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
         return buildList(count) {
             val cursor = start.clone() as Calendar
             repeat(count) {
                 add(
                     HabitDay(
                         key = dayKey(cursor),
-                        dayName = shortDayFormat.format(cursor.time).take(2),
+                        dayName = LocalizedFormatters
+                            .formatDate("EEE", cursor.timeInMillis)
+                            .take(2),
                         dayNumber = cursor.get(Calendar.DAY_OF_MONTH).toString(),
-                        fullLabel = fullFormat.format(cursor.time),
+                        fullLabel = LocalizedFormatters.formatDate(
+                            "EEEE, MMMM d",
+                            cursor.timeInMillis,
+                        ),
                         isToday = dayKey(cursor) == dayKey(today),
                         isFuture = cursor.timeInMillis > today.timeInMillis,
                         weekday = HabitWeekday.fromCalendarValue(

@@ -54,8 +54,7 @@ import com.example.guider.domain.goals.Goal
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.ui.theme.taskCategoryPalette
-import java.text.SimpleDateFormat
-import java.util.Date
+import com.example.guider.util.LocalizedFormatters
 import java.util.Locale
 
 @Composable
@@ -67,13 +66,18 @@ fun DailyTasksScreen(
     goalTitlesById: Map<Long, String> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
-    val filteredTasks = selectedCategory?.let { category ->
-        tasks.filter { it.taskCategory == category }
-    } ?: tasks
-    val completeCount = tasks.count { it.isFinished }
+    val filteredTasks = remember(tasks, selectedCategory) {
+        selectedCategory?.let { category ->
+            tasks.filter { it.taskCategory == category }
+        } ?: tasks
+    }
+    val completeCount = remember(tasks) { tasks.count { it.isFinished } }
+    val filteredCompleteCount = remember(filteredTasks) {
+        filteredTasks.count { it.isFinished }
+    }
     val taskListState = rememberLazyListState()
     val dateLabel = remember {
-        SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
+        LocalizedFormatters.formatDate("EEEE, MMMM d", System.currentTimeMillis())
     }
 
     LaunchedEffect(selectedCategory) {
@@ -103,7 +107,7 @@ fun DailyTasksScreen(
         )
         SectionTitle(
             title = selectedCategory?.displayName ?: "Today's list",
-            supportingText = "${filteredTasks.count { it.isFinished }} of ${filteredTasks.size} complete",
+            supportingText = "$filteredCompleteCount of ${filteredTasks.size} complete",
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
         )
 

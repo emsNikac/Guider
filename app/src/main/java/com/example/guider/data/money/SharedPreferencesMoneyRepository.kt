@@ -2,19 +2,30 @@ package com.example.guider.data.money
 
 import android.content.Context
 import androidx.core.content.edit
+import com.example.guider.data.ConflatedStateWriter
 import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.MoneyRepository
 import com.example.guider.domain.money.Spending
 import com.example.guider.domain.time.DayKeys
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-class SharedPreferencesMoneyRepository(context: Context) : MoneyRepository {
+class SharedPreferencesMoneyRepository(
+    context: Context,
+    persistenceScope: CoroutineScope,
+) : MoneyRepository {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val mutableLedger = MutableStateFlow(readLedger())
+    private val stateWriter = ConflatedStateWriter<MoneyLedger>(
+        scope = persistenceScope,
+        storageName = PREFERENCES_NAME,
+    ) { ledger ->
+        writeLedger(ledger)
+    }
 
     override val ledger: StateFlow<MoneyLedger> = mutableLedger.asStateFlow()
 
@@ -100,6 +111,11 @@ class SharedPreferencesMoneyRepository(context: Context) : MoneyRepository {
     }.getOrElse { MoneyLedger() }
 
     private fun persist(ledger: MoneyLedger) {
+        mutableLedger.value = ledger
+        stateWriter.submit(ledger)
+    }
+
+    private fun writeLedger(ledger: MoneyLedger) {
         preferences.edit {
             putString(
                 KEY_SPENDINGS,
@@ -118,7 +134,6 @@ class SharedPreferencesMoneyRepository(context: Context) : MoneyRepository {
             ledger.periodStartDayKey?.let { putInt(KEY_PERIOD_START, it) }
                 ?: remove(KEY_PERIOD_START)
         }
-        mutableLedger.value = ledger
     }
 
     private companion object {

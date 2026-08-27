@@ -8,9 +8,36 @@ import androidx.work.WorkManager
 import com.example.guider.domain.sleep.ActiveSleepSession
 import com.example.guider.domain.sleep.SleepCycleCalculator
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 
-class HibernationPromptScheduler(context: Context) {
-    private val workManager = WorkManager.getInstance(context)
+class HibernationPromptScheduler(
+    context: Context,
+    backgroundScope: CoroutineScope,
+) {
+    private val applicationContext = context.applicationContext
+    private val workManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        WorkManager.getInstance(applicationContext)
+    }
+    private val commands = Channel<SchedulerCommand>(capacity = Channel.UNLIMITED)
+
+    init {
+        backgroundScope.launch(Dispatchers.Default) {
+            for (command in commands) {
+                when (command) {
+                    is SchedulerCommand.Schedule -> workManager.enqueueUniqueWork(
+                        UNIQUE_WORK_NAME,
+                        ExistingWorkPolicy.REPLACE,
+                        command.request,
+                    )
+
+                    SchedulerCommand.Cancel -> workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
+                }
+            }
+        }
+    }
 
     fun schedule(session: ActiveSleepSession, nowEpochMillis: Long = System.currentTimeMillis()) {
         val promptAt = session.sleepStartsAtEpochMillis +
@@ -24,15 +51,16 @@ class HibernationPromptScheduler(context: Context) {
             )
             .build()
 
-        workManager.enqueueUniqueWork(
-            UNIQUE_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            request,
-        )
+        check(commands.trySend(SchedulerCommand.Schedule(request)).isSuccess)
     }
 
     fun cancel() {
-        workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
+        check(commands.trySend(SchedulerCommand.Cancel).isSuccess)
+    }
+
+    private sealed interface SchedulerCommand {
+        data class Schedule(val request: androidx.work.OneTimeWorkRequest) : SchedulerCommand
+        data object Cancel : SchedulerCommand
     }
 
     private companion object {

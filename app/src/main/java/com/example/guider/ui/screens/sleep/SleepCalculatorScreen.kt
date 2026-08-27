@@ -57,10 +57,9 @@ import com.example.guider.domain.sleep.SleepCycleSuggestion
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillItem
 import com.example.guider.ui.components.navigationPillScrollEffect
+import com.example.guider.util.LocalizedFormatters
 import kotlinx.coroutines.delay
-import java.text.DateFormat as JavaDateFormat
 import java.util.Calendar
-import java.util.Date
 
 @Composable
 fun SleepCalculatorRoute(
@@ -503,7 +502,7 @@ private fun rememberVisibleDeviceTime(enabled: Boolean): Long {
 }
 
 private fun formatTime(epochMillis: Long): String =
-    JavaDateFormat.getTimeInstance(JavaDateFormat.SHORT).format(Date(epochMillis))
+    LocalizedFormatters.formatShortTime(epochMillis)
 
 private fun formatCycleDuration(cycles: Int): String {
     val totalMinutes = SleepCycleCalculator.FALL_ASLEEP_MINUTES +

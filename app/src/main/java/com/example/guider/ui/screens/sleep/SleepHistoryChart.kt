@@ -29,9 +29,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.example.guider.domain.sleep.SleepHistoryRange
 import com.example.guider.domain.sleep.SleepRecord
-import java.text.SimpleDateFormat
+import com.example.guider.util.LocalizedFormatters
 import java.util.Calendar
-import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -49,7 +48,7 @@ fun SleepHistoryCard(
     val days = remember(records, range) {
         buildChartDays(records = records, range = range, nowEpochMillis = System.currentTimeMillis())
     }
-    val recordedHours = days.mapNotNull { it.hours }
+    val recordedHours = remember(days) { days.mapNotNull { it.hours } }
     val average = recordedHours.takeIf { it.isNotEmpty() }?.average()
 
     Surface(
@@ -136,7 +135,7 @@ private fun SleepLineChart(days: List<SleepChartDay>) {
     val pointCenterColor = MaterialTheme.colorScheme.surfaceContainerLow
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val values = days.mapNotNull { it.hours }
+    val values = remember(days) { days.mapNotNull { it.hours } }
     val maximumHours = max(10f, ceil((values.maxOrNull() ?: 0f) / 2f) * 2f)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -237,11 +236,7 @@ private fun buildChartDays(
     range: SleepHistoryRange,
     nowEpochMillis: Long,
 ): List<SleepChartDay> {
-    val locale = Locale.getDefault()
-    val labelFormat = SimpleDateFormat(
-        if (range == SleepHistoryRange.WEEK) "EEE" else "d MMM",
-        locale,
-    )
+    val labelPattern = if (range == SleepHistoryRange.WEEK) "EEE" else "d MMM"
     val today = Calendar.getInstance().apply {
         timeInMillis = nowEpochMillis
         set(Calendar.HOUR_OF_DAY, 0)
@@ -259,7 +254,10 @@ private fun buildChartDays(
             .takeIf { it > 0L }
             ?.div(MILLIS_PER_HOUR)
             ?.toFloat()
-        SleepChartDay(label = labelFormat.format(start.time), hours = hours)
+        SleepChartDay(
+            label = LocalizedFormatters.formatDate(labelPattern, start.timeInMillis),
+            hours = hours,
+        )
     }
 }
 

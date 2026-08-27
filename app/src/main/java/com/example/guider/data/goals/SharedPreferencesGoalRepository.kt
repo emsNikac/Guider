@@ -2,19 +2,30 @@ package com.example.guider.data.goals
 
 import android.content.Context
 import androidx.core.content.edit
+import com.example.guider.data.ConflatedStateWriter
 import com.example.guider.domain.goals.Goal
 import com.example.guider.domain.goals.GoalRepository
 import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.time.DayKeys
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-class SharedPreferencesGoalRepository(context: Context) : GoalRepository {
+class SharedPreferencesGoalRepository(
+    context: Context,
+    persistenceScope: CoroutineScope,
+) : GoalRepository {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val mutableGoals = MutableStateFlow(readGoals())
+    private val stateWriter = ConflatedStateWriter<List<Goal>>(
+        scope = persistenceScope,
+        storageName = PREFERENCES_NAME,
+    ) { goals ->
+        preferences.edit { putString(KEY_GOALS, goalsToJson(goals).toString()) }
+    }
 
     override val goals: StateFlow<List<Goal>> = mutableGoals.asStateFlow()
 
@@ -122,8 +133,8 @@ class SharedPreferencesGoalRepository(context: Context) : GoalRepository {
     }
 
     private fun persist(goals: List<Goal>) {
-        preferences.edit { putString(KEY_GOALS, goalsToJson(goals).toString()) }
         mutableGoals.value = goals
+        stateWriter.submit(goals)
     }
 
     private fun goalsToJson(goals: List<Goal>): JSONArray = JSONArray().apply {

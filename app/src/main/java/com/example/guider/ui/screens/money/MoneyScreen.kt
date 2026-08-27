@@ -45,17 +45,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.guider.domain.money.MoneyCalculations
-import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.Spending
 import com.example.guider.domain.time.DayKeys
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.R
-import java.math.BigDecimal
-import java.text.NumberFormat
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.example.guider.util.LocalizedFormatters
 import kotlin.math.roundToLong
 
 @Composable
@@ -63,10 +58,10 @@ fun MoneyRoute(
     modifier: Modifier = Modifier,
     viewModel: MoneyViewModel = viewModel(),
 ) {
-    val ledger by viewModel.ledger.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     MoneyScreen(
-        ledger = ledger,
+        uiState = uiState,
         onAddSpending = viewModel::addSpending,
         onEditSpending = viewModel::editSpending,
         onDeleteSpending = viewModel::deleteSpending,
@@ -77,22 +72,20 @@ fun MoneyRoute(
 
 @Composable
 private fun MoneyScreen(
-    ledger: MoneyLedger,
+    uiState: MoneyUiState,
     onAddSpending: (String, Long) -> Unit,
     onEditSpending: (Long, String, Long) -> Unit,
     onDeleteSpending: (Long) -> Unit,
     onRestart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val ledger = uiState.ledger
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var spendingBeingEdited by remember { mutableStateOf<Spending?>(null) }
     var spendingPendingDeletion by remember { mutableStateOf<Spending?>(null) }
     var showRestartDialog by rememberSaveable { mutableStateOf(false) }
-    val totalMinor = remember(ledger.spendings) {
-        MoneyCalculations.totalMinor(ledger.spendings)
-    }
     val animatedTotalMinor by animateFloatAsState(
-        targetValue = totalMinor.toFloat(),
+        targetValue = uiState.totalMinor.toFloat(),
         animationSpec = tween(
             durationMillis = TOTAL_ANIMATION_DURATION_MILLIS,
             easing = FastOutSlowInEasing,
@@ -134,7 +127,7 @@ private fun MoneyScreen(
             }
         } else {
             items(
-                items = ledger.spendings.sortedByDescending(Spending::createdAtEpochMillis),
+                items = uiState.sortedSpendings,
                 key = Spending::id,
             ) { spending ->
                 SpendingCard(
@@ -509,21 +502,16 @@ private fun RestartSpendingDialog(
 }
 
 private fun formatMoney(amountMinor: Long): String =
-    NumberFormat.getCurrencyInstance().apply {
-        minimumFractionDigits = 2
-        maximumFractionDigits = 2
-    }.format(BigDecimal.valueOf(amountMinor, 2))
+    LocalizedFormatters.formatCurrency(amountMinor)
 
 private fun currencySymbol(): String =
-    NumberFormat.getCurrencyInstance().currency?.getSymbol(Locale.getDefault()).orEmpty()
+    LocalizedFormatters.currencySymbol()
 
 private fun formatDayKey(dayKey: Int): String =
-    SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()).format(
-        Date(DayKeys.toEpochMillis(dayKey)),
-    )
+    LocalizedFormatters.formatDate("MMMM d, yyyy", DayKeys.toEpochMillis(dayKey))
 
 private fun formatSpendingDate(epochMillis: Long): String =
-    SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMillis))
+    LocalizedFormatters.formatDate("MMM d, yyyy", epochMillis)
 
 private const val MONEY_HEADER_KEY = "money_header"
 private const val MONEY_TOTAL_KEY = "money_total"

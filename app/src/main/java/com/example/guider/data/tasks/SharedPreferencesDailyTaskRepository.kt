@@ -2,19 +2,30 @@ package com.example.guider.data.tasks
 
 import android.content.Context
 import androidx.core.content.edit
+import com.example.guider.data.ConflatedStateWriter
 import com.example.guider.domain.tasks.DailyTaskRepository
 import com.example.guider.domain.time.DayKeys
 import com.example.guider.models.DailyTask
 import com.example.guider.models.TaskCategory
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-class SharedPreferencesDailyTaskRepository(context: Context) : DailyTaskRepository {
+class SharedPreferencesDailyTaskRepository(
+    context: Context,
+    persistenceScope: CoroutineScope,
+) : DailyTaskRepository {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val mutableTasks = MutableStateFlow(readTasks())
+    private val stateWriter = ConflatedStateWriter<List<DailyTask>>(
+        scope = persistenceScope,
+        storageName = PREFERENCES_NAME,
+    ) { tasks ->
+        preferences.edit { putString(KEY_TASKS, tasksToJson(tasks).toString()) }
+    }
 
     override val tasks: StateFlow<List<DailyTask>> = mutableTasks.asStateFlow()
 
@@ -98,8 +109,8 @@ class SharedPreferencesDailyTaskRepository(context: Context) : DailyTaskReposito
     }
 
     private fun persist(tasks: List<DailyTask>) {
-        preferences.edit { putString(KEY_TASKS, tasksToJson(tasks).toString()) }
         mutableTasks.value = tasks
+        stateWriter.submit(tasks)
     }
 
     private fun tasksToJson(tasks: List<DailyTask>): JSONArray = JSONArray().apply {

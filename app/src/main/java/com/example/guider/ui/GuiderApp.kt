@@ -66,6 +66,7 @@ fun GuiderApp(
     var showAddTaskDialog by remember { mutableStateOf(false) }
     val tasks by viewModel.tasks.collectAsState()
     val goals by viewModel.goals.collectAsState()
+    val goalTitlesById = remember(goals) { goals.associate { it.id to it.title } }
     val destinations = GuiderDestination.entries
     val pagerState = rememberPagerState(
         initialPage = GuiderDestination.DAILY_TASKS.ordinal,
@@ -148,6 +149,7 @@ fun GuiderApp(
                     viewModel.setTaskFinished(id, isFinished)
                 },
                 goals = goals,
+                goalTitlesById = goalTitlesById,
             )
         }
     }
@@ -172,6 +174,7 @@ private fun DestinationContent(
     contentPadding: PaddingValues,
     tasks: List<DailyTask>,
     goals: List<Goal>,
+    goalTitlesById: Map<Long, String>,
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
@@ -193,7 +196,7 @@ private fun DestinationContent(
             selectedCategory = selectedCategory,
             onCategorySelected = onCategorySelected,
             onTaskCheckedChange = onTaskCheckedChange,
-            goalTitlesById = goals.associate { it.id to it.title },
+            goalTitlesById = goalTitlesById,
             modifier = modifier,
         )
 

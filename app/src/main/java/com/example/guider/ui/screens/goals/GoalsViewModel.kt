@@ -2,11 +2,30 @@ package com.example.guider.ui.screens.goals
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.guider.GuiderApplication
+import com.example.guider.domain.goals.Goal
 import com.example.guider.domain.goals.GoalHabitInput
+import com.example.guider.domain.goals.GoalProgress
+import com.example.guider.domain.goals.GoalProgressCalculator
 import com.example.guider.domain.goals.GoalType
+import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.time.DayKeys
 import com.example.guider.models.TaskCategory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
+
+internal data class GoalsUiState(
+    val goals: List<Goal> = emptyList(),
+    val oneTimeGoals: List<Goal> = emptyList(),
+    val periodicGoals: List<Goal> = emptyList(),
+    val linkedHabits: Map<Long?, List<Habit>> = emptyMap(),
+    val periodicProgress: Map<Goal, GoalProgress> = emptyMap(),
+)
 
 class GoalsViewModel(application: Application) : AndroidViewModel(application) {
     private val guiderApplication = application as GuiderApplication
@@ -14,8 +33,34 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
     private val habitRepository = guiderApplication.habitRepository
     private val taskRepository = guiderApplication.dailyTaskRepository
 
-    val goals = goalRepository.goals
-    val habits = habitRepository.habits
+    internal val uiState = combine(goalRepository.goals, habitRepository.habits, ::Pair)
+        .map { (goals, habits) ->
+            withContext(Dispatchers.Default) {
+                val todayDayKey = DayKeys.today()
+                val oneTimeGoals = goals.filter { it.type == GoalType.ONE_TIME }
+                val periodicGoals = goals.filter { it.type == GoalType.PERIODIC }
+                val linkedHabits = habits.groupBy(Habit::linkedGoalId)
+                val periodicProgress = periodicGoals.associateWith { goal ->
+                    GoalProgressCalculator.calculate(
+                        goal = goal,
+                        linkedHabits = linkedHabits[goal.id].orEmpty(),
+                        todayDayKey = todayDayKey,
+                    )
+                }
+                GoalsUiState(
+                    goals = goals,
+                    oneTimeGoals = oneTimeGoals,
+                    periodicGoals = periodicGoals,
+                    linkedHabits = linkedHabits,
+                    periodicProgress = periodicProgress,
+                )
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = GoalsUiState(),
+        )
 
     fun addGoal(
         title: String,

@@ -2,17 +2,22 @@ package com.example.guider.data.sleep
 
 import android.content.Context
 import androidx.core.content.edit
+import com.example.guider.data.ConflatedStateWriter
 import com.example.guider.domain.sleep.ActiveSleepSession
 import com.example.guider.domain.sleep.SleepCycleCalculator
 import com.example.guider.domain.sleep.SleepRecord
 import com.example.guider.domain.sleep.SleepRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-class SharedPreferencesSleepRepository(context: Context) : SleepRepository {
+class SharedPreferencesSleepRepository(
+    context: Context,
+    persistenceScope: CoroutineScope,
+) : SleepRepository {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     private val mutableActiveSession = MutableStateFlow(readActiveSession())
@@ -20,6 +25,12 @@ class SharedPreferencesSleepRepository(context: Context) : SleepRepository {
 
     private val mutableHistory = MutableStateFlow(readHistory())
     override val history: StateFlow<List<SleepRecord>> = mutableHistory.asStateFlow()
+    private val stateWriter = ConflatedStateWriter<SleepStorageState>(
+        scope = persistenceScope,
+        storageName = PREFERENCES_NAME,
+    ) { state ->
+        writeState(state)
+    }
 
     @Synchronized
     override fun startHibernation(activatedAtEpochMillis: Long): ActiveSleepSession {
@@ -29,11 +40,8 @@ class SharedPreferencesSleepRepository(context: Context) : SleepRepository {
             activatedAtEpochMillis = activatedAtEpochMillis,
             sleepStartsAtEpochMillis = SleepCycleCalculator.effectiveSleepStart(activatedAtEpochMillis),
         )
-        preferences.edit {
-            putLong(KEY_ACTIVE_ACTIVATED_AT, session.activatedAtEpochMillis)
-            putLong(KEY_ACTIVE_SLEEP_STARTS_AT, session.sleepStartsAtEpochMillis)
-        }
         mutableActiveSession.value = session
+        persistCurrentState()
         return session
     }
 
@@ -48,14 +56,32 @@ class SharedPreferencesSleepRepository(context: Context) : SleepRepository {
         )
         val updatedHistory = (mutableHistory.value + record).takeLast(MAX_HISTORY_RECORDS)
 
-        preferences.edit {
-            remove(KEY_ACTIVE_ACTIVATED_AT)
-            remove(KEY_ACTIVE_SLEEP_STARTS_AT)
-            putString(KEY_HISTORY, historyToJson(updatedHistory).toString())
-        }
         mutableActiveSession.value = null
         mutableHistory.value = updatedHistory
+        persistCurrentState()
         return record
+    }
+
+    private fun persistCurrentState() {
+        stateWriter.submit(
+            SleepStorageState(
+                activeSession = mutableActiveSession.value,
+                history = mutableHistory.value,
+            ),
+        )
+    }
+
+    private fun writeState(state: SleepStorageState) {
+        preferences.edit {
+            state.activeSession?.let { session ->
+                putLong(KEY_ACTIVE_ACTIVATED_AT, session.activatedAtEpochMillis)
+                putLong(KEY_ACTIVE_SLEEP_STARTS_AT, session.sleepStartsAtEpochMillis)
+            } ?: run {
+                remove(KEY_ACTIVE_ACTIVATED_AT)
+                remove(KEY_ACTIVE_SLEEP_STARTS_AT)
+            }
+            putString(KEY_HISTORY, historyToJson(state.history).toString())
+        }
     }
 
     private fun readActiveSession(): ActiveSleepSession? {
@@ -97,6 +123,11 @@ class SharedPreferencesSleepRepository(context: Context) : SleepRepository {
             )
         }
     }
+
+    private data class SleepStorageState(
+        val activeSession: ActiveSleepSession?,
+        val history: List<SleepRecord>,
+    )
 
     private companion object {
         const val PREFERENCES_NAME = "sleep_tracking"

@@ -2,11 +2,13 @@ package com.example.guider.data.habits
 
 import android.content.Context
 import androidx.core.content.edit
+import com.example.guider.data.ConflatedStateWriter
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitRepository
 import com.example.guider.domain.habits.HabitWeekday
 import com.example.guider.domain.habits.isScheduledOn
 import com.example.guider.domain.time.DayKeys
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,9 +16,20 @@ import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.abs
 
-class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
+class SharedPreferencesHabitRepository(
+    context: Context,
+    persistenceScope: CoroutineScope,
+) : HabitRepository {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val mutableHabits = MutableStateFlow(readHabits())
+    private val stateWriter = ConflatedStateWriter<List<Habit>>(
+        scope = persistenceScope,
+        storageName = PREFERENCES_NAME,
+    ) { habits ->
+        preferences.edit {
+            putString(KEY_HABITS, habitsToJson(habits).toString())
+        }
+    }
 
     override val habits: StateFlow<List<Habit>> = mutableHabits.asStateFlow()
 
@@ -131,10 +144,8 @@ class SharedPreferencesHabitRepository(context: Context) : HabitRepository {
     }
 
     private fun persist(habits: List<Habit>) {
-        preferences.edit {
-            putString(KEY_HABITS, habitsToJson(habits).toString())
-        }
         mutableHabits.value = habits
+        stateWriter.submit(habits)
     }
 
     private fun habitsToJson(habits: List<Habit>): JSONArray = JSONArray().apply {

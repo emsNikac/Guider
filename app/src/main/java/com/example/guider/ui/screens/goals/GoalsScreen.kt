@@ -65,7 +65,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.guider.domain.goals.Goal
 import com.example.guider.domain.goals.GoalHabitInput
 import com.example.guider.domain.goals.GoalProgress
-import com.example.guider.domain.goals.GoalProgressCalculator
 import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.goals.isActive
 import com.example.guider.domain.habits.Habit
@@ -74,23 +73,19 @@ import com.example.guider.domain.time.DayKeys
 import com.example.guider.models.TaskCategory
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
+import com.example.guider.util.LocalizedFormatters
 import com.example.guider.ui.screens.AddTaskDialog
 import com.example.guider.R
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun GoalsRoute(
     modifier: Modifier = Modifier,
     viewModel: GoalsViewModel = viewModel(),
 ) {
-    val goals by viewModel.goals.collectAsStateWithLifecycle()
-    val habits by viewModel.habits.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     GoalsScreen(
-        goals = goals,
-        habits = habits,
+        uiState = uiState,
         onAddGoal = viewModel::addGoal,
         onToggleAchievement = viewModel::toggleAchievement,
         onAddDailyTask = viewModel::addDailyTask,
@@ -101,28 +96,22 @@ fun GoalsRoute(
 
 @Composable
 private fun GoalsScreen(
-    goals: List<Goal>,
-    habits: List<Habit>,
+    uiState: GoalsUiState,
     onAddGoal: (String, GoalType, List<GoalHabitInput>, Int?, Int?) -> Unit,
     onToggleAchievement: (Long) -> Unit,
     onAddDailyTask: (Long, String, TaskCategory) -> Unit,
     onDeleteGoal: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val goals = uiState.goals
     var showAddGoalDialog by rememberSaveable { mutableStateOf(false) }
     var taskGoal by remember { mutableStateOf<Goal?>(null) }
     var goalPendingDeletion by remember { mutableStateOf<Goal?>(null) }
     val todayDayKey = DayKeys.today()
-    val oneTimeGoals = goals.filter { it.type == GoalType.ONE_TIME }
-    val periodicGoals = goals.filter { it.type == GoalType.PERIODIC }
-    val linkedHabits = habits.groupBy(Habit::linkedGoalId)
-    val periodicProgress = periodicGoals.associateWith { goal ->
-        GoalProgressCalculator.calculate(
-            goal = goal,
-            linkedHabits = linkedHabits[goal.id].orEmpty(),
-            todayDayKey = todayDayKey,
-        )
-    }
+    val oneTimeGoals = uiState.oneTimeGoals
+    val periodicGoals = uiState.periodicGoals
+    val linkedHabits = uiState.linkedHabits
+    val periodicProgress = uiState.periodicProgress
 
     LazyColumn(
         modifier = modifier
@@ -1072,9 +1061,7 @@ private fun goalPeriodLabel(goal: Goal): String {
 }
 
 private fun formatDayKey(dayKey: Int): String =
-    SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(
-        Date(DayKeys.toEpochMillis(dayKey)),
-    )
+    LocalizedFormatters.formatDate("MMM d, yyyy", DayKeys.toEpochMillis(dayKey))
 
 private const val GOALS_HEADER_KEY = "goals_header"
 private const val GOALS_OVERVIEW_KEY = "goals_overview"

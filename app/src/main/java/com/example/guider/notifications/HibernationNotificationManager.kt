@@ -14,8 +14,7 @@ import androidx.core.content.ContextCompat
 import com.example.guider.MainActivity
 import com.example.guider.R
 import com.example.guider.domain.sleep.ActiveSleepSession
-import java.text.DateFormat
-import java.util.Date
+import com.example.guider.util.LocalizedFormatters
 
 class HibernationNotificationManager(private val context: Context) {
     fun createChannel() {
@@ -46,9 +45,7 @@ class HibernationNotificationManager(private val context: Context) {
     fun showActiveSession(session: ActiveSleepSession) {
         if (!canPostNotifications()) return
 
-        val sleepStart = DateFormat.getTimeInstance(DateFormat.SHORT).format(
-            Date(session.sleepStartsAtEpochMillis),
-        )
+        val sleepStart = LocalizedFormatters.formatShortTime(session.sleepStartsAtEpochMillis)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.sleep_nav_ic)
             .setContentTitle(context.getString(R.string.hibernation_notification_title))

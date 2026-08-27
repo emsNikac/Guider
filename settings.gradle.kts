@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "guider"
 include(":app")
- 
+include(":baselineprofile")
