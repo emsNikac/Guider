@@ -1,18 +1,16 @@
 package com.example.guider.ui
 
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +21,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -37,12 +36,14 @@ import com.example.guider.domain.time.DayKeys
 import com.example.guider.ui.components.GuiderBottomBar
 import com.example.guider.ui.screens.AddTaskDialog
 import com.example.guider.ui.screens.DailyTasksScreen
-import com.example.guider.ui.screens.FeatureOverviewScreen
 import com.example.guider.ui.screens.goals.GoalsRoute
 import com.example.guider.ui.screens.habits.HabitsRoute
+import com.example.guider.ui.screens.money.MoneyRoute
 import com.example.guider.ui.screens.sleep.SleepCalculatorRoute
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 enum class GuiderDestination(
     val label: String,
@@ -61,11 +62,22 @@ fun GuiderApp(
     onDestinationRequestConsumed: () -> Unit = {},
     viewModel: GuiderViewModel = viewModel(),
 ) {
-    var selectedDestination by remember { mutableStateOf(GuiderDestination.DAILY_TASKS) }
     var selectedCategory by remember { mutableStateOf<TaskCategory?>(null) }
     var showAddTaskDialog by remember { mutableStateOf(false) }
     val tasks by viewModel.tasks.collectAsState()
     val goals by viewModel.goals.collectAsState()
+    val destinations = GuiderDestination.entries
+    val pagerState = rememberPagerState(
+        initialPage = GuiderDestination.DAILY_TASKS.ordinal,
+        pageCount = { destinations.size },
+    )
+    val navigationDestination = destinations[pagerState.targetPage]
+    val settledDestination = destinations[pagerState.settledPage]
+    val pageAnimationSpec = remember {
+        tween<Float>(durationMillis = 280, easing = FastOutSlowInEasing)
+    }
+    val coroutineScope = rememberCoroutineScope()
+    var navigationJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -76,7 +88,10 @@ fun GuiderApp(
 
     LaunchedEffect(destinationRequest) {
         destinationRequest?.let {
-            selectedDestination = it
+            pagerState.animateScrollToPage(
+                page = it.ordinal,
+                animationSpec = pageAnimationSpec,
+            )
             onDestinationRequestConsumed()
         }
     }
@@ -85,12 +100,22 @@ fun GuiderApp(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             GuiderBottomBar(
-                selectedDestination = selectedDestination,
-                onDestinationSelected = { selectedDestination = it },
+                selectedDestination = navigationDestination,
+                onDestinationSelected = { destination ->
+                    if (destination.ordinal != pagerState.targetPage) {
+                        navigationJob?.cancel()
+                        navigationJob = coroutineScope.launch {
+                            pagerState.animateScrollToPage(
+                                page = destination.ordinal,
+                                animationSpec = pageAnimationSpec,
+                            )
+                        }
+                    }
+                },
             )
         },
         floatingActionButton = {
-            if (selectedDestination == GuiderDestination.DAILY_TASKS) {
+            if (settledDestination == GuiderDestination.DAILY_TASKS) {
                 FloatingActionButton(
                     onClick = { showAddTaskDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -104,19 +129,15 @@ fun GuiderApp(
             }
         },
     ) { innerPadding ->
-        AnimatedContent(
-            targetState = selectedDestination,
-            transitionSpec = {
-                val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
-                (slideInHorizontally(tween(280)) { direction * it / 3 } + fadeIn(tween(220)))
-                    .togetherWith(
-                        slideOutHorizontally(tween(280)) { -direction * it / 3 } + fadeOut(tween(180)),
-                    )
-            },
-            label = "Main destination",
-        ) { destination ->
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            key = { page -> destinations[page] },
+            beyondViewportPageCount = 1,
+        ) { page ->
             DestinationContent(
-                destination = destination,
+                destination = destinations[page],
+                isVisible = page == pagerState.settledPage,
                 contentPadding = innerPadding,
                 tasks = tasks,
                 selectedCategory = selectedCategory,
@@ -147,6 +168,7 @@ fun GuiderApp(
 @Composable
 private fun DestinationContent(
     destination: GuiderDestination,
+    isVisible: Boolean,
     contentPadding: PaddingValues,
     tasks: List<DailyTask>,
     goals: List<Goal>,
@@ -175,20 +197,15 @@ private fun DestinationContent(
             modifier = modifier,
         )
 
-        GuiderDestination.SLEEP -> SleepCalculatorRoute(modifier = modifier)
+        GuiderDestination.SLEEP -> SleepCalculatorRoute(
+            isVisible = isVisible,
+            modifier = modifier,
+        )
 
         GuiderDestination.HABITS -> HabitsRoute(modifier = modifier)
 
         GuiderDestination.BIGGER_GOALS -> GoalsRoute(modifier = modifier)
 
-        GuiderDestination.MONEY -> FeatureOverviewScreen(
-            title = "Money management",
-            subtitle = "Keep everyday spending and saving easy to understand.",
-            cardTitle = "Know where your money goes",
-            cardBody = "Budgets, transactions, and savings goals will come together in one clear view.",
-            features = listOf("Simple budgets", "Expense categories", "Savings goals"),
-            iconRes = destination.iconRes,
-            modifier = modifier,
-        )
+        GuiderDestination.MONEY -> MoneyRoute(modifier = modifier)
     }
 }

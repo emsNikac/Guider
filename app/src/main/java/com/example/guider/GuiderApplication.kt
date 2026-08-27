@@ -5,11 +5,13 @@ import com.example.guider.data.habits.SharedPreferencesHabitRepository
 import com.example.guider.data.sleep.SharedPreferencesSleepRepository
 import com.example.guider.data.goals.SharedPreferencesGoalRepository
 import com.example.guider.data.tasks.SharedPreferencesDailyTaskRepository
+import com.example.guider.data.money.SharedPreferencesMoneyRepository
 import com.example.guider.domain.goals.GoalRepository
 import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.habits.HabitRepository
 import com.example.guider.domain.sleep.SleepRepository
 import com.example.guider.domain.tasks.DailyTaskRepository
+import com.example.guider.domain.money.MoneyRepository
 import com.example.guider.notifications.HibernationNotificationManager
 import com.example.guider.notifications.HibernationPromptScheduler
 
@@ -26,6 +28,9 @@ class GuiderApplication : Application() {
     lateinit var dailyTaskRepository: DailyTaskRepository
         private set
 
+    lateinit var moneyRepository: MoneyRepository
+        private set
+
     lateinit var hibernationNotificationManager: HibernationNotificationManager
         private set
 
@@ -38,6 +43,7 @@ class GuiderApplication : Application() {
         sleepRepository = SharedPreferencesSleepRepository(this)
         goalRepository = SharedPreferencesGoalRepository(this)
         dailyTaskRepository = SharedPreferencesDailyTaskRepository(this)
+        moneyRepository = SharedPreferencesMoneyRepository(this)
         goalRepository.goals.value
             .filter { it.type == GoalType.PERIODIC }
             .forEach { goal ->

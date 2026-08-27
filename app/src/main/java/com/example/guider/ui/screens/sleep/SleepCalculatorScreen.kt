@@ -64,6 +64,7 @@ import java.util.Date
 
 @Composable
 fun SleepCalculatorRoute(
+    isVisible: Boolean = true,
     modifier: Modifier = Modifier,
     viewModel: SleepViewModel = viewModel(),
 ) {
@@ -72,7 +73,9 @@ fun SleepCalculatorRoute(
     var manualReferenceTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
     var notificationPermissionDenied by rememberSaveable { mutableStateOf(false) }
-    val deviceTime = rememberVisibleDeviceTime(enabled = manualReferenceTime == null)
+    val deviceTime = rememberVisibleDeviceTime(
+        enabled = isVisible && manualReferenceTime == null,
+    )
     val referenceTime = manualReferenceTime ?: deviceTime
     val suggestions = remember(referenceTime) {
         SleepCycleCalculator.suggestions(referenceTime)

@@ -68,6 +68,7 @@ import com.example.guider.R
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitStreakCalculator
 import com.example.guider.domain.habits.HabitTrackerRange
+import com.example.guider.domain.habits.HabitWeekday
 import com.example.guider.domain.habits.isScheduledOn
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
@@ -92,7 +93,7 @@ fun HabitsRoute(
 @Composable
 private fun HabitsScreen(
     habits: List<Habit>,
-    onAddHabit: (String) -> Unit,
+    onAddHabit: (String, Set<HabitWeekday>) -> Unit,
     onToggleCompletion: (Long, Int) -> Unit,
     onDeleteHabit: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -184,8 +185,8 @@ private fun HabitsScreen(
     if (showAddDialog) {
         AddHabitDialog(
             onDismiss = { showAddDialog = false },
-            onConfirm = { name ->
-                onAddHabit(name)
+            onConfirm = { name, scheduledWeekdays ->
+                onAddHabit(name, scheduledWeekdays)
                 showAddDialog = false
             },
         )
@@ -940,9 +941,10 @@ private fun DeleteHabitDialog(
 @Composable
 private fun AddHabitDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, Set<HabitWeekday>) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
+    var scheduledWeekdays by remember { mutableStateOf(HabitWeekday.entries.toSet()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -957,16 +959,78 @@ private fun AddHabitDialog(
                     singleLine = true,
                 )
                 Text(
-                    text = "Guider will assign a unique color to this habit.",
+                    text = "Scheduled days",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    HabitWeekday.entries.forEach { weekday ->
+                        val selected = weekday in scheduledWeekdays
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(CircleShape)
+                                .semantics {
+                                    contentDescription = weekday.name
+                                        .lowercase()
+                                        .replaceFirstChar(Char::uppercase)
+                                }
+                                .toggleable(
+                                    value = selected,
+                                    role = Role.Checkbox,
+                                    onValueChange = {
+                                        scheduledWeekdays = scheduledWeekdays
+                                            .toMutableSet()
+                                            .apply {
+                                                if (!add(weekday)) remove(weekday)
+                                            }
+                                    },
+                                ),
+                            shape = CircleShape,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            },
+                            contentColor = if (selected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        ) {
+                            Box(
+                                modifier = Modifier.height(34.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = weekday.shortLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = if (scheduledWeekdays.isEmpty()) {
+                        "Choose at least one day."
+                    } else {
+                        "Guider will assign a unique color to this habit."
+                    },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (scheduledWeekdays.isEmpty()) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name.trim()) },
-                enabled = name.isNotBlank(),
+                onClick = { onConfirm(name.trim(), scheduledWeekdays) },
+                enabled = name.isNotBlank() && scheduledWeekdays.isNotEmpty(),
             ) {
                 Text("Add habit")
             }
