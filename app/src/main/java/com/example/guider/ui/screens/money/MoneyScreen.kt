@@ -129,6 +129,7 @@ private fun MoneyScreen(
             items(
                 items = uiState.sortedSpendings,
                 key = Spending::id,
+                contentType = { MONEY_SPENDING_CONTENT_TYPE },
             ) { spending ->
                 SpendingCard(
                     spending = spending,
@@ -517,4 +518,5 @@ private const val MONEY_HEADER_KEY = "money_header"
 private const val MONEY_TOTAL_KEY = "money_total"
 private const val MONEY_HISTORY_HEADER_KEY = "money_history_header"
 private const val MONEY_EMPTY_KEY = "money_empty"
+private const val MONEY_SPENDING_CONTENT_TYPE = "money_spending"
 private const val TOTAL_ANIMATION_DURATION_MILLIS = 850

@@ -49,7 +49,9 @@ fun SleepHistoryCard(
         buildChartDays(records = records, range = range, nowEpochMillis = System.currentTimeMillis())
     }
     val recordedHours = remember(days) { days.mapNotNull { it.hours } }
-    val average = recordedHours.takeIf { it.isNotEmpty() }?.average()
+    val average = remember(recordedHours) {
+        recordedHours.takeIf { it.isNotEmpty() }?.average()
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -136,7 +138,9 @@ private fun SleepLineChart(days: List<SleepChartDay>) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val values = remember(days) { days.mapNotNull { it.hours } }
-    val maximumHours = max(10f, ceil((values.maxOrNull() ?: 0f) / 2f) * 2f)
+    val maximumHours = remember(values) {
+        max(10f, ceil((values.maxOrNull() ?: 0f) / 2f) * 2f)
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(

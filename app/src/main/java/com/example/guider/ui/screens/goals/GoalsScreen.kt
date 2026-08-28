@@ -107,7 +107,6 @@ private fun GoalsScreen(
     var showAddGoalDialog by rememberSaveable { mutableStateOf(false) }
     var taskGoal by remember { mutableStateOf<Goal?>(null) }
     var goalPendingDeletion by remember { mutableStateOf<Goal?>(null) }
-    val todayDayKey = DayKeys.today()
     val oneTimeGoals = uiState.oneTimeGoals
     val periodicGoals = uiState.periodicGoals
     val linkedHabits = uiState.linkedHabits
@@ -131,7 +130,7 @@ private fun GoalsScreen(
 
         item(key = GOALS_OVERVIEW_KEY) {
             GoalsOverview(
-                activeGoalCount = goals.count { it.isActive(todayDayKey) },
+                activeGoalCount = uiState.activeGoalCount,
             )
         }
 
@@ -143,7 +142,7 @@ private fun GoalsScreen(
             item(key = ONE_TIME_HEADER_KEY) {
                 GoalSectionTitle(
                     title = "One-time goals",
-                    supportingText = "${oneTimeGoals.count { it.isActive(todayDayKey) }} active",
+                    supportingText = "${uiState.activeOneTimeGoalCount} active",
                 )
             }
             if (oneTimeGoals.isEmpty()) {
@@ -154,6 +153,7 @@ private fun GoalsScreen(
                 items(
                     items = oneTimeGoals,
                     key = { "one_time_${it.id}" },
+                    contentType = { ONE_TIME_GOAL_CONTENT_TYPE },
                 ) { goal ->
                     OneTimeGoalCard(
                         goal = goal,
@@ -166,7 +166,7 @@ private fun GoalsScreen(
             item(key = PERIODIC_HEADER_KEY) {
                 GoalSectionTitle(
                     title = "Periodic goals",
-                    supportingText = "${periodicGoals.count { it.isActive(todayDayKey) }} active",
+                    supportingText = "${uiState.activePeriodicGoalCount} active",
                 )
             }
             if (periodicGoals.isEmpty()) {
@@ -177,11 +177,12 @@ private fun GoalsScreen(
                 items(
                     items = periodicGoals,
                     key = { "periodic_${it.id}" },
+                    contentType = { PERIODIC_GOAL_CONTENT_TYPE },
                 ) { goal ->
                     PeriodicGoalCard(
                         goal = goal,
                         habits = linkedHabits[goal.id].orEmpty(),
-                        progress = periodicProgress.getValue(goal),
+                        progress = periodicProgress.getValue(goal.id),
                         onAddDailyTask = { taskGoal = goal },
                         onDelete = { goalPendingDeletion = goal },
                     )
@@ -1070,4 +1071,6 @@ private const val ONE_TIME_HEADER_KEY = "one_time_header"
 private const val ONE_TIME_EMPTY_KEY = "one_time_empty"
 private const val PERIODIC_HEADER_KEY = "periodic_header"
 private const val PERIODIC_EMPTY_KEY = "periodic_empty"
+private const val ONE_TIME_GOAL_CONTENT_TYPE = "one_time_goal"
+private const val PERIODIC_GOAL_CONTENT_TYPE = "periodic_goal"
 private const val DEFAULT_GOAL_PERIOD_DAYS = 14

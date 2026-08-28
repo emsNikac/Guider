@@ -3,6 +3,7 @@ package com.example.guider.notifications
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.guider.AppFeature
 import com.example.guider.GuiderApplication
 
 class WakePromptWorker(
@@ -11,7 +12,8 @@ class WakePromptWorker(
 ) : CoroutineWorker(appContext, workerParameters) {
     override suspend fun doWork(): Result {
         val application = applicationContext as GuiderApplication
-        application.awaitReady()
+        runCatching { application.awaitFeature(AppFeature.SLEEP) }
+            .getOrElse { return Result.retry() }
         val expectedActivation = inputData.getLong(KEY_ACTIVATED_AT, Long.MIN_VALUE)
         val activeSession = application.sleepRepository.activeSession.value
         if (activeSession?.activatedAtEpochMillis != expectedActivation) return Result.success()

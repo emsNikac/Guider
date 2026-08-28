@@ -1,5 +1,8 @@
 package com.example.guider.domain.sleep
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class SleepCycleSuggestion(
     val cycleCount: Int,
     val wakeAtEpochMillis: Long,
@@ -8,11 +11,13 @@ data class SleepCycleSuggestion(
         get() = cycleCount >= 5
 }
 
+@Immutable
 data class ActiveSleepSession(
     val activatedAtEpochMillis: Long,
     val sleepStartsAtEpochMillis: Long,
 )
 
+@Immutable
 data class SleepRecord(
     val id: Long,
     val activatedAtEpochMillis: Long,

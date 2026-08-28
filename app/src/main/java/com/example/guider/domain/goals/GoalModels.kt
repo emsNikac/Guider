@@ -1,5 +1,6 @@
 package com.example.guider.domain.goals
 
+import androidx.compose.runtime.Immutable
 import com.example.guider.domain.habits.HabitWeekday
 
 enum class GoalType(val label: String) {
@@ -7,6 +8,7 @@ enum class GoalType(val label: String) {
     PERIODIC("Periodic"),
 }
 
+@Immutable
 data class Goal(
     val id: Long,
     val title: String,
@@ -27,6 +29,7 @@ data class GoalHabitInput(
     val scheduledWeekdays: Set<HabitWeekday>,
 )
 
+@Immutable
 data class GoalProgress(
     val completedCheckIns: Int,
     val expectedCheckIns: Int,

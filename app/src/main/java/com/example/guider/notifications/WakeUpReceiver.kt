@@ -3,6 +3,7 @@ package com.example.guider.notifications
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.example.guider.AppFeature
 import com.example.guider.GuiderApplication
 
 class WakeUpReceiver : BroadcastReceiver() {
@@ -10,14 +11,12 @@ class WakeUpReceiver : BroadcastReceiver() {
         if (intent.action != ACTION_CONFIRM_WAKE_UP) return
         val application = context.applicationContext as GuiderApplication
         val pendingResult = goAsync()
-        application.runWhenReady {
-            try {
-                sleepRepository.finishHibernation(System.currentTimeMillis())
-                hibernationNotificationManager.cancelActiveSession()
-                hibernationPromptScheduler.cancel()
-            } finally {
-                pendingResult.finish()
-            }
+        application.runWhenFeatureReady(AppFeature.SLEEP) {
+            sleepRepository.finishHibernation(System.currentTimeMillis())
+            hibernationNotificationManager.cancelActiveSession()
+            hibernationPromptScheduler.cancel()
+        }.invokeOnCompletion {
+            pendingResult.finish()
         }
     }
 

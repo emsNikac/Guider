@@ -75,6 +75,9 @@ fun DailyTasksScreen(
     val filteredCompleteCount = remember(filteredTasks) {
         filteredTasks.count { it.isFinished }
     }
+    val taskCountsByCategory = remember(tasks) {
+        tasks.groupingBy(DailyTask::taskCategory).eachCount()
+    }
     val taskListState = rememberLazyListState()
     val dateLabel = remember {
         LocalizedFormatters.formatDate("EEEE, MMMM d", System.currentTimeMillis())
@@ -95,7 +98,7 @@ fun DailyTasksScreen(
                 totalCount = tasks.size,
             )
             CategorySection(
-                tasks = tasks,
+                taskCountsByCategory = taskCountsByCategory,
                 selectedCategory = selectedCategory,
                 onCategorySelected = onCategorySelected,
             )
@@ -133,6 +136,7 @@ fun DailyTasksScreen(
                 items(
                     items = filteredTasks,
                     key = { it.id },
+                    contentType = { DAILY_TASK_CONTENT_TYPE },
                 ) { task ->
                     DailyTaskCard(
                         task = task,
@@ -146,6 +150,7 @@ fun DailyTasksScreen(
 }
 
 private const val DAILY_TASKS_EMPTY_KEY = "daily_tasks_empty"
+private const val DAILY_TASK_CONTENT_TYPE = "daily_task"
 
 @Composable
 private fun DailyHeader(dateLabel: String) {
@@ -228,7 +233,7 @@ private fun CompactProgressRow(
 
 @Composable
 private fun CategorySection(
-    tasks: List<DailyTask>,
+    taskCountsByCategory: Map<TaskCategory, Int>,
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
 ) {
@@ -245,7 +250,7 @@ private fun CategorySection(
                 rowCategories.forEach { category ->
                     CategoryTile(
                         category = category,
-                        taskCount = tasks.count { it.taskCategory == category },
+                        taskCount = taskCountsByCategory[category] ?: 0,
                         selected = selectedCategory == category,
                         onClick = { onCategorySelected(category) },
                         modifier = Modifier.weight(1f),

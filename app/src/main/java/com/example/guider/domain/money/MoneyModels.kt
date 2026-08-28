@@ -1,5 +1,8 @@
 package com.example.guider.domain.money
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Spending(
     val id: Long,
     val title: String,

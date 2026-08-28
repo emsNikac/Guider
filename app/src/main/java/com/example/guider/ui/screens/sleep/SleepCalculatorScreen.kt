@@ -140,6 +140,11 @@ private fun SleepCalculatorScreen(
     onFinishHibernation: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val standardSuggestionRows = remember(suggestions) {
+        suggestions.take(4).chunked(2)
+    }
+    val recommendedSuggestions = remember(suggestions) { suggestions.drop(4) }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -188,7 +193,7 @@ private fun SleepCalculatorScreen(
             }
         }
 
-        suggestions.take(4).chunked(2).forEach { rowSuggestions ->
+        standardSuggestionRows.forEach { rowSuggestions ->
             navigationPillItem(
                 itemKey = "sleep_cycle_row_${rowSuggestions.first().cycleCount}",
             ) {
@@ -211,7 +216,7 @@ private fun SleepCalculatorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                suggestions.drop(4).forEach { suggestion ->
+                recommendedSuggestions.forEach { suggestion ->
                     RecommendedCycleTile(
                         suggestion = suggestion,
                         modifier = Modifier.weight(1f),

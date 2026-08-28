@@ -1,5 +1,8 @@
 package com.example.guider.models
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class DailyTask(
     val id: Long,
     val taskCategory: TaskCategory,

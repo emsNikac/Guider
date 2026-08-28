@@ -9,6 +9,7 @@ import com.example.guider.domain.goals.GoalHabitInput
 import com.example.guider.domain.goals.GoalProgress
 import com.example.guider.domain.goals.GoalProgressCalculator
 import com.example.guider.domain.goals.GoalType
+import com.example.guider.domain.goals.isActive
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.time.DayKeys
 import com.example.guider.models.TaskCategory
@@ -23,8 +24,11 @@ internal data class GoalsUiState(
     val goals: List<Goal> = emptyList(),
     val oneTimeGoals: List<Goal> = emptyList(),
     val periodicGoals: List<Goal> = emptyList(),
+    val activeGoalCount: Int = 0,
+    val activeOneTimeGoalCount: Int = 0,
+    val activePeriodicGoalCount: Int = 0,
     val linkedHabits: Map<Long?, List<Habit>> = emptyMap(),
-    val periodicProgress: Map<Goal, GoalProgress> = emptyMap(),
+    val periodicProgress: Map<Long, GoalProgress> = emptyMap(),
 )
 
 class GoalsViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,7 +44,8 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
                 val oneTimeGoals = goals.filter { it.type == GoalType.ONE_TIME }
                 val periodicGoals = goals.filter { it.type == GoalType.PERIODIC }
                 val linkedHabits = habits.groupBy(Habit::linkedGoalId)
-                val periodicProgress = periodicGoals.associateWith { goal ->
+                val periodicProgress = periodicGoals.associate { goal ->
+                    goal.id to
                     GoalProgressCalculator.calculate(
                         goal = goal,
                         linkedHabits = linkedHabits[goal.id].orEmpty(),
@@ -51,6 +56,9 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
                     goals = goals,
                     oneTimeGoals = oneTimeGoals,
                     periodicGoals = periodicGoals,
+                    activeGoalCount = goals.count { it.isActive(todayDayKey) },
+                    activeOneTimeGoalCount = oneTimeGoals.count { it.isActive(todayDayKey) },
+                    activePeriodicGoalCount = periodicGoals.count { it.isActive(todayDayKey) },
                     linkedHabits = linkedHabits,
                     periodicProgress = periodicProgress,
                 )

@@ -314,6 +314,7 @@ private fun HabitMatrix(
     onToggleCompletion: (Long, Int) -> Unit,
 ) {
     val dayScrollState = rememberScrollState()
+    val dayKeys = remember(days) { days.map(HabitDay::key) }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -353,7 +354,7 @@ private fun HabitMatrix(
                     val dayColumnWidth =
                         ((maxWidth - habitNameWidth) / 7).coerceAtLeast(26.dp)
 
-                    LaunchedEffect(days.map(HabitDay::key)) {
+                    LaunchedEffect(dayKeys) {
                         dayScrollState.scrollTo(0)
                     }
 
@@ -396,7 +397,10 @@ private fun CompactMonthHabitGrid(
     ) {
         val dayColumnWidth = maxWidth / days.size
         val squareSize = (dayColumnWidth - 1.dp).coerceIn(3.dp, 8.dp)
-        val markerDays = days.filterIndexed { index, _ -> index % 7 == 0 }
+        val markerDays = remember(days) {
+            days.filterIndexed { index, _ -> index % 7 == 0 }
+        }
+        val legendRows = remember(habits) { habits.chunked(2) }
 
         Column {
             Row(
@@ -467,7 +471,7 @@ private fun CompactMonthHabitGrid(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            habits.chunked(2).forEach { legendRow ->
+            legendRows.forEach { legendRow ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -591,16 +595,24 @@ private fun HabitCompletionRow(
     onToggleCompletion: (Long, Int) -> Unit,
 ) {
     val color = habitColor(habit)
-    var celebrationTrigger by remember(habit.id, days.map(HabitDay::key)) {
+    val dayKeys = remember(days) { days.map(HabitDay::key) }
+    val dueDays = remember(
+        habit.scheduledWeekdays,
+        habit.activeStartDayKey,
+        habit.activeEndDayKey,
+        days,
+    ) {
+        days.filter { day ->
+            !day.isFuture && habit.isScheduledOn(day.key, day.weekday)
+        }
+    }
+    var celebrationTrigger by remember(habit.id, dayKeys) {
         mutableIntStateOf(0)
     }
     Row {
         days.forEachIndexed { index, day ->
             val completed = day.key in habit.completedDayKeys
             val scheduled = habit.isScheduledOn(day.key, day.weekday)
-            val dueDays = days.filter {
-                !it.isFuture && habit.isScheduledOn(it.key, it.weekday)
-            }
             val completesWeek = scheduled && !completed && dueDays.all { visibleDay ->
                 visibleDay.key == day.key || visibleDay.key in habit.completedDayKeys
             }
@@ -720,6 +732,17 @@ private fun HabitStreaks(
     todayKey: Int,
     onDeleteMenuRequested: () -> Unit,
 ) {
+    val recentDayKeys = remember(todayKey) {
+        HabitCalendar.recentDayKeys(
+            nowEpochMillis = nowEpochMillis,
+            count = 366,
+        )
+    }
+    val todayWeekday = remember(todayKey) {
+        com.example.guider.domain.habits.HabitWeekday.fromCalendarValue(
+            com.example.guider.domain.time.DayKeys.weekday(todayKey),
+        )
+    }
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -750,22 +773,18 @@ private fun HabitStreaks(
             val streak = remember(
                 habit.completedDayKeys,
                 habit.scheduledWeekdays,
+                habit.activeStartDayKey,
+                habit.activeEndDayKey,
                 todayKey,
             ) {
                 HabitStreakCalculator.currentStreak(
                     completedDayKeys = habit.completedDayKeys,
-                    dayKeysNewestFirst = HabitCalendar.recentDayKeys(
-                        nowEpochMillis = nowEpochMillis,
-                        count = 366,
-                    ).filter { dayKey ->
+                    dayKeysNewestFirst = recentDayKeys.filter { dayKey ->
                         com.example.guider.domain.habits.HabitWeekday.fromCalendarValue(
                             com.example.guider.domain.time.DayKeys.weekday(dayKey),
                         ).let { weekday -> habit.isScheduledOn(dayKey, weekday) }
                     },
-                    allowIncompleteFirstDay = com.example.guider.domain.habits.HabitWeekday
-                        .fromCalendarValue(
-                            com.example.guider.domain.time.DayKeys.weekday(todayKey),
-                        ).let { weekday -> habit.isScheduledOn(todayKey, weekday) },
+                    allowIncompleteFirstDay = habit.isScheduledOn(todayKey, todayWeekday),
                 )
             }
             val color = habitColor(habit)
