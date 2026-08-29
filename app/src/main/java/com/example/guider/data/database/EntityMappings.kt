@@ -4,7 +4,6 @@ import com.example.guider.domain.goals.Goal
 import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitWeekday
-import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.Spending
 import com.example.guider.domain.sleep.ActiveSleepSession
 import com.example.guider.domain.sleep.SleepRecord
@@ -35,7 +34,6 @@ fun HabitRecord.toModel(): Habit = Habit(
     id = habit.id,
     name = habit.name,
     colorHue = habit.colorHue,
-    completedDayKeys = completions.mapTo(HashSet(completions.size)) { it.dayKey },
     scheduledWeekdays = weekdays.mapTo(HashSet(weekdays.size)) {
         HabitWeekday.valueOf(it.weekday)
     },
@@ -61,9 +59,4 @@ fun SpendingEntity.toModel(): Spending = Spending(
     title = title,
     amountMinor = amountMinor,
     createdAtEpochMillis = createdAtEpochMillis,
-)
-
-fun MoneyLedgerRecord?.toModel(): MoneyLedger = MoneyLedger(
-    spendings = this?.spendings.orEmpty().map(SpendingEntity::toModel),
-    periodStartDayKey = this?.state?.periodStartDayKey,
 )

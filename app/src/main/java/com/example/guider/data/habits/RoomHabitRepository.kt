@@ -7,29 +7,47 @@ import com.example.guider.data.database.HabitEntity
 import com.example.guider.data.database.HabitRecord
 import com.example.guider.data.database.HabitWeekdayEntity
 import com.example.guider.data.database.toModel
+import com.example.guider.data.stateInWhileSubscribed
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitRepository
 import com.example.guider.domain.habits.HabitWeekday
 import com.example.guider.domain.time.DayKeys
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOn
 import kotlin.math.abs
 
 class RoomHabitRepository private constructor(
     private val database: GuiderDatabase,
-    scope: CoroutineScope,
-    initialHabits: List<Habit>,
+    override val habits: StateFlow<List<Habit>>,
+    override val recentCompletions: StateFlow<Map<Long, Set<Int>>>,
 ) : HabitRepository {
     private val dao = database.habitDao()
 
-    override val habits: StateFlow<List<Habit>> = dao.observeAll()
-        .map { records -> records.map(HabitRecord::toModel) }
+    override fun observeCompletionsBetween(
+        startDayKey: Int,
+        endDayKey: Int,
+    ): Flow<Map<Long, Set<Int>>> = dao
+        .observeCompletionsBetween(startDayKey, endDayKey)
+        .map(::completionMap)
         .distinctUntilChanged()
-        .stateIn(scope, SharingStarted.Eagerly, initialHabits)
+        .flowOn(Dispatchers.Default)
+
+    override val goalCompletionCounts: Flow<Map<Long, Int>> = dao
+        .observeGoalCompletionCounts()
+        .map { counts ->
+            counts.associate { count ->
+                count.goalId to count.completedCheckIns.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            }
+        }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
 
     override suspend fun addHabit(
         name: String,
@@ -64,13 +82,13 @@ class RoomHabitRepository private constructor(
 
     override suspend fun toggleCompletion(habitId: Long, dayKey: Int) {
         database.withTransaction {
-            val habit = dao.getHabit(habitId) ?: return@withTransaction
-            if (habit.activeStartDayKey != null && dayKey < habit.activeStartDayKey) return@withTransaction
-            if (habit.activeEndDayKey != null && dayKey > habit.activeEndDayKey) return@withTransaction
-
             val weekday = HabitWeekday.fromCalendarValue(DayKeys.weekday(dayKey))
-            if (!dao.isScheduledWeekday(habitId, weekday.name)) return@withTransaction
-            if (dao.isCompleted(habitId, dayKey)) {
+            val state = dao.getToggleState(habitId, dayKey, weekday.name)
+                ?: return@withTransaction
+            if (state.activeStartDayKey != null && dayKey < state.activeStartDayKey) return@withTransaction
+            if (state.activeEndDayKey != null && dayKey > state.activeEndDayKey) return@withTransaction
+            if (!state.isScheduled) return@withTransaction
+            if (state.isCompleted) {
                 dao.deleteCompletion(habitId, dayKey)
             } else {
                 dao.insertCompletion(HabitCompletionEntity(habitId, dayKey))
@@ -94,12 +112,39 @@ class RoomHabitRepository private constructor(
         private const val FULL_CIRCLE_DEGREES = 360
         private const val DEFAULT_HUE = 210f
 
-        suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomHabitRepository =
-            RoomHabitRepository(
-                database = database,
-                scope = scope,
-                initialHabits = database.habitDao().getAll().map(HabitRecord::toModel),
-            )
+        suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomHabitRepository {
+            val dao = database.habitDao()
+            val todayDayKey = DayKeys.today()
+            val recentStartDayKey = DayKeys.addDays(todayDayKey, -(RECENT_DAY_COUNT - 1))
+            return coroutineScope {
+                val habits = async {
+                    dao.observeAll()
+                        .map { records -> records.map(HabitRecord::toModel) }
+                        .distinctUntilChanged()
+                        .stateInWhileSubscribed(scope)
+                }
+                val recentCompletions = async {
+                    dao.observeCompletionsBetween(recentStartDayKey, todayDayKey)
+                        .map(::completionMap)
+                        .distinctUntilChanged()
+                        .flowOn(Dispatchers.Default)
+                        .stateInWhileSubscribed(scope)
+                }
+                RoomHabitRepository(
+                    database = database,
+                    habits = habits.await(),
+                    recentCompletions = recentCompletions.await(),
+                )
+            }
+        }
+
+        private fun completionMap(
+            completions: List<HabitCompletionEntity>,
+        ): Map<Long, Set<Int>> = completions
+            .groupByTo(LinkedHashMap()) { it.habitId }
+            .mapValues { (_, entries) ->
+                entries.mapTo(LinkedHashSet(entries.size)) { it.dayKey }
+            }
 
         fun mostDistinctHue(usedHues: List<Float>): Float {
             if (usedHues.isEmpty()) return DEFAULT_HUE
@@ -112,5 +157,7 @@ class RoomHabitRepository private constructor(
                 }
                 .toFloat()
         }
+
+        private const val RECENT_DAY_COUNT = 366
     }
 }

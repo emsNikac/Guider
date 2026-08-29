@@ -6,6 +6,7 @@ import com.example.guider.data.database.GuiderDatabase
 import com.example.guider.data.database.HabitEntity
 import com.example.guider.data.database.HabitWeekdayEntity
 import com.example.guider.data.database.toModel
+import com.example.guider.data.stateInWhileSubscribed
 import com.example.guider.data.habits.RoomHabitRepository
 import com.example.guider.domain.goals.Goal
 import com.example.guider.domain.goals.GoalHabitInput
@@ -13,24 +14,16 @@ import com.example.guider.domain.goals.GoalRepository
 import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.time.DayKeys
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 
 class RoomGoalRepository private constructor(
     private val database: GuiderDatabase,
-    scope: CoroutineScope,
-    initialGoals: List<Goal>,
+    override val goals: StateFlow<List<Goal>>,
 ) : GoalRepository {
     private val goalDao = database.goalDao()
     private val habitDao = database.habitDao()
-
-    override val goals: StateFlow<List<Goal>> = goalDao.observeAll()
-        .map { entities -> entities.map(GoalEntity::toModel) }
-        .distinctUntilChanged()
-        .stateIn(scope, SharingStarted.Eagerly, initialGoals)
 
     override suspend fun addGoal(
         title: String,
@@ -98,10 +91,13 @@ class RoomGoalRepository private constructor(
 
         suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomGoalRepository {
             database.goalDao().removeCompletedBefore(DayKeys.today())
+            val goals = database.goalDao().observeAll()
+                .map { entities -> entities.map(GoalEntity::toModel) }
+                .distinctUntilChanged()
+                .stateInWhileSubscribed(scope)
             return RoomGoalRepository(
                 database = database,
-                scope = scope,
-                initialGoals = database.goalDao().getAll().map(GoalEntity::toModel),
+                goals = goals,
             )
         }
     }

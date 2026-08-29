@@ -29,6 +29,6 @@ class BaselineProfileGenerator {
         pressHome()
         startActivityAndWait()
         waitForDailyTasks()
-        navigateAcrossAllScreens()
+        exerciseCommonJourneys()
     }
 }

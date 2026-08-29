@@ -45,30 +45,63 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
     private val habitRepository = guiderApplication.habitRepository
     private val taskRepository = guiderApplication.dailyTaskRepository
 
-    internal val uiState = combine(goalRepository.goals, habitRepository.habits, ::Pair)
-        .map { (goals, habits) ->
+    internal val uiState = combine(
+        goalRepository.goals,
+        habitRepository.habits,
+        habitRepository.goalCompletionCounts,
+    ) { goals, habits, completionCounts -> Triple(goals, habits, completionCounts) }
+        .map { (goals, habits, completionCounts) ->
             withContext(Dispatchers.Default) {
                 val todayDayKey = DayKeys.today()
-                val oneTimeGoals = goals.filter { it.type == GoalType.ONE_TIME }
-                val periodicGoals = goals.filter { it.type == GoalType.PERIODIC }
-                val linkedHabits = habits
-                    .groupBy { habit -> habit.linkedGoalId ?: UNLINKED_GOAL_ID }
-                    .mapValues { (_, linked) -> linked.toImmutableSnapshot() }
-                val periodicProgress = periodicGoals.associate { goal ->
-                    goal.id to
-                    GoalProgressCalculator.calculate(
-                        goal = goal,
-                        linkedHabits = linkedHabits[goal.id].orEmpty(),
-                        todayDayKey = todayDayKey,
-                    )
+                val oneTimeGoals = ArrayList<Goal>()
+                val periodicGoals = ArrayList<Goal>()
+                var activeGoalCount = 0
+                var activeOneTimeGoalCount = 0
+                var activePeriodicGoalCount = 0
+                goals.forEach { goal ->
+                    val active = goal.isActive(todayDayKey)
+                    if (active) activeGoalCount++
+                    when (goal.type) {
+                        GoalType.ONE_TIME -> {
+                            oneTimeGoals += goal
+                            if (active) activeOneTimeGoalCount++
+                        }
+                        GoalType.PERIODIC -> {
+                            periodicGoals += goal
+                            if (active) activePeriodicGoalCount++
+                        }
+                    }
+                }
+
+                val mutableLinkedHabits = LinkedHashMap<Long, MutableList<Habit>>()
+                habits.forEach { habit ->
+                    habit.linkedGoalId?.let { goalId ->
+                        mutableLinkedHabits.getOrPut(goalId, ::ArrayList).add(habit)
+                    }
+                }
+                val linkedHabits = mutableLinkedHabits.mapValues { (_, linked) ->
+                    linked.toImmutableSnapshot()
+                }
+                val periodicProgress = buildMap(periodicGoals.size) {
+                    periodicGoals.forEach { goal ->
+                        put(
+                            goal.id,
+                            GoalProgressCalculator.calculateFromCompletedCount(
+                                goal = goal,
+                                linkedHabits = linkedHabits[goal.id].orEmpty(),
+                                completedCheckIns = completionCounts[goal.id] ?: 0,
+                                todayDayKey = todayDayKey,
+                            ),
+                        )
+                    }
                 }
                 GoalsUiState(
                     goals = goals.toImmutableSnapshot(),
                     oneTimeGoals = oneTimeGoals.toImmutableSnapshot(),
                     periodicGoals = periodicGoals.toImmutableSnapshot(),
-                    activeGoalCount = goals.count { it.isActive(todayDayKey) },
-                    activeOneTimeGoalCount = oneTimeGoals.count { it.isActive(todayDayKey) },
-                    activePeriodicGoalCount = periodicGoals.count { it.isActive(todayDayKey) },
+                    activeGoalCount = activeGoalCount,
+                    activeOneTimeGoalCount = activeOneTimeGoalCount,
+                    activePeriodicGoalCount = activePeriodicGoalCount,
                     linkedHabits = linkedHabits.toImmutableSnapshot(),
                     periodicProgress = periodicProgress.toImmutableSnapshot(),
                 )
@@ -127,9 +160,5 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
             // Room cascades linked habits and clears task links in the same transaction.
             goalRepository.deleteGoal(goalId)
         }
-    }
-
-    private companion object {
-        const val UNLINKED_GOAL_ID = -1L
     }
 }

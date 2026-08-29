@@ -12,9 +12,6 @@ interface DailyTaskDao {
     @Query("SELECT * FROM daily_tasks ORDER BY id")
     fun observeAll(): Flow<List<DailyTaskEntity>>
 
-    @Query("SELECT * FROM daily_tasks ORDER BY id")
-    suspend fun getAll(): List<DailyTaskEntity>
-
     @Insert
     suspend fun insert(task: DailyTaskEntity): Long
 
@@ -47,9 +44,6 @@ interface DailyTaskDao {
 interface GoalDao {
     @Query("SELECT * FROM goals ORDER BY id")
     fun observeAll(): Flow<List<GoalEntity>>
-
-    @Query("SELECT * FROM goals ORDER BY id")
-    suspend fun getAll(): List<GoalEntity>
 
     @Insert
     suspend fun insert(goal: GoalEntity): Long
@@ -84,13 +78,6 @@ interface HabitDao {
     @Query("SELECT * FROM habits ORDER BY id")
     fun observeAll(): Flow<List<HabitRecord>>
 
-    @Transaction
-    @Query("SELECT * FROM habits ORDER BY id")
-    suspend fun getAll(): List<HabitRecord>
-
-    @Query("SELECT * FROM habits WHERE id = :habitId")
-    suspend fun getHabit(habitId: Long): HabitEntity?
-
     @Query("SELECT colorHue FROM habits ORDER BY id")
     suspend fun getUsedHues(): List<Float>
 
@@ -107,14 +94,72 @@ interface HabitDao {
     suspend fun insertCompletions(completions: List<HabitCompletionEntity>)
 
     @Query(
-        "SELECT EXISTS(SELECT 1 FROM habit_weekdays WHERE habitId = :habitId AND weekday = :weekday)",
+        """
+        SELECT h.activeStartDayKey,
+               h.activeEndDayKey,
+               EXISTS(
+                   SELECT 1 FROM habit_weekdays w
+                   WHERE w.habitId = h.id AND w.weekday = :weekday
+               ) AS isScheduled,
+               EXISTS(
+                   SELECT 1 FROM habit_completions c
+                   WHERE c.habitId = h.id AND c.dayKey = :dayKey
+               ) AS isCompleted
+        FROM habits h
+        WHERE h.id = :habitId
+        """,
     )
-    suspend fun isScheduledWeekday(habitId: Long, weekday: String): Boolean
+    suspend fun getToggleState(
+        habitId: Long,
+        dayKey: Int,
+        weekday: String,
+    ): HabitToggleState?
 
     @Query(
-        "SELECT EXISTS(SELECT 1 FROM habit_completions WHERE habitId = :habitId AND dayKey = :dayKey)",
+        """
+        SELECT * FROM habit_completions
+        WHERE dayKey BETWEEN :startDayKey AND :endDayKey
+        ORDER BY habitId, dayKey
+        """,
     )
-    suspend fun isCompleted(habitId: Long, dayKey: Int): Boolean
+    fun observeCompletionsBetween(
+        startDayKey: Int,
+        endDayKey: Int,
+    ): Flow<List<HabitCompletionEntity>>
+
+    @Query(
+        """
+        SELECT h.linkedGoalId AS goalId, COUNT(*) AS completedCheckIns
+        FROM habit_completions c
+        JOIN habits h ON h.id = c.habitId
+        JOIN habit_weekdays w
+          ON w.habitId = c.habitId
+         AND w.weekday = CASE CAST(
+             strftime(
+                 '%w',
+                 printf(
+                     '%04d-%02d-%02d',
+                     c.dayKey / 10000,
+                     (c.dayKey / 100) % 100,
+                     c.dayKey % 100
+                 )
+             ) AS INTEGER
+         )
+             WHEN 0 THEN 'SUNDAY'
+             WHEN 1 THEN 'MONDAY'
+             WHEN 2 THEN 'TUESDAY'
+             WHEN 3 THEN 'WEDNESDAY'
+             WHEN 4 THEN 'THURSDAY'
+             WHEN 5 THEN 'FRIDAY'
+             WHEN 6 THEN 'SATURDAY'
+         END
+        WHERE h.linkedGoalId IS NOT NULL
+          AND (h.activeStartDayKey IS NULL OR c.dayKey >= h.activeStartDayKey)
+          AND (h.activeEndDayKey IS NULL OR c.dayKey <= h.activeEndDayKey)
+        GROUP BY h.linkedGoalId
+        """,
+    )
+    fun observeGoalCompletionCounts(): Flow<List<GoalCompletionCount>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCompletion(completion: HabitCompletionEntity)
@@ -155,9 +200,6 @@ interface SleepDao {
     @Query("SELECT * FROM sleep_records ORDER BY endedAtEpochMillis, id")
     fun observeHistory(): Flow<List<SleepRecordEntity>>
 
-    @Query("SELECT * FROM sleep_records ORDER BY endedAtEpochMillis, id")
-    suspend fun getHistory(): List<SleepRecordEntity>
-
     @Insert
     suspend fun insertRecord(record: SleepRecordEntity): Long
 
@@ -177,13 +219,26 @@ interface SleepDao {
 
 @Dao
 interface MoneyDao {
-    @Transaction
-    @Query("SELECT * FROM money_state WHERE id = 1")
-    fun observeLedger(): Flow<MoneyLedgerRecord?>
+    @Query(
+        """
+        SELECT * FROM spendings
+        WHERE ledgerId = 1
+        ORDER BY createdAtEpochMillis DESC, id ASC
+        """,
+    )
+    fun observeSpendings(): Flow<List<SpendingEntity>>
 
-    @Transaction
-    @Query("SELECT * FROM money_state WHERE id = 1")
-    suspend fun getLedger(): MoneyLedgerRecord?
+    @Query(
+        """
+        SELECT state.periodStartDayKey AS periodStartDayKey,
+               COALESCE(SUM(spending.amountMinor), 0) AS totalMinor
+        FROM money_state state
+        LEFT JOIN spendings spending ON spending.ledgerId = state.id
+        WHERE state.id = 1
+        GROUP BY state.id, state.periodStartDayKey
+        """,
+    )
+    fun observeLedgerSummary(): Flow<MoneyLedgerSummary?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setState(state: MoneyStateEntity)

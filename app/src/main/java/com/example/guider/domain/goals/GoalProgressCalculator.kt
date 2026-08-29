@@ -15,19 +15,59 @@ object GoalProgressCalculator {
             return GoalProgress(completedCheckIns = 0, expectedCheckIns = 0)
         }
 
-        var completed = 0
-        var expected = 0
         val startDayKey = goal.startDayKey ?: goal.createdDayKey
         val endDayKey = goal.endDayKey ?: todayDayKey
-        for (dayKey in DayKeys.inclusiveRange(startDayKey, endDayKey)) {
-            val weekday = HabitWeekday.fromCalendarValue(DayKeys.weekday(dayKey))
-            for (habit in linkedHabits) {
-                if (habit.isScheduledOn(dayKey, weekday)) {
-                    expected += 1
-                    if (dayKey <= todayDayKey && dayKey in habit.completedDayKeys) completed += 1
+        var completed = 0
+        linkedHabits.forEach { habit ->
+            habit.completedDayKeys.forEach { dayKey ->
+                if (dayKey in startDayKey..minOf(endDayKey, todayDayKey)) {
+                    val weekday = HabitWeekday.fromCalendarValue(DayKeys.weekday(dayKey))
+                    if (habit.isScheduledOn(dayKey, weekday)) completed++
                 }
             }
         }
-        return GoalProgress(completedCheckIns = completed, expectedCheckIns = expected)
+        return calculateFromCompletedCount(
+            goal = goal,
+            linkedHabits = linkedHabits,
+            completedCheckIns = completed,
+            todayDayKey = todayDayKey,
+        )
     }
+
+    fun calculateFromCompletedCount(
+        goal: Goal,
+        linkedHabits: List<Habit>,
+        completedCheckIns: Int,
+        todayDayKey: Int = DayKeys.today(),
+    ): GoalProgress {
+        if (goal.type != GoalType.PERIODIC || linkedHabits.isEmpty()) {
+            return GoalProgress(completedCheckIns = 0, expectedCheckIns = 0)
+        }
+
+        val goalStartDayKey = goal.startDayKey ?: goal.createdDayKey
+        val goalEndDayKey = goal.endDayKey ?: todayDayKey
+        var expected = 0
+        linkedHabits.forEach { habit ->
+            val startDayKey = maxOf(goalStartDayKey, habit.activeStartDayKey ?: goalStartDayKey)
+            val endDayKey = minOf(goalEndDayKey, habit.activeEndDayKey ?: goalEndDayKey)
+            expected += expectedOccurrences(habit, startDayKey, endDayKey)
+        }
+        return GoalProgress(
+            completedCheckIns = completedCheckIns.coerceAtMost(expected),
+            expectedCheckIns = expected,
+        )
+    }
+
+    private fun expectedOccurrences(habit: Habit, startDayKey: Int, endDayKey: Int): Int {
+        val dayCount = DayKeys.inclusiveDayCount(startDayKey, endDayKey)
+        if (dayCount == 0) return 0
+
+        val firstWeekday = DayKeys.weekday(startDayKey)
+        return habit.scheduledWeekdays.sumOf { weekday ->
+            val offset = Math.floorMod(weekday.calendarValue - firstWeekday, DAYS_PER_WEEK)
+            if (offset >= dayCount) 0 else 1 + (dayCount - 1 - offset) / DAYS_PER_WEEK
+        }
+    }
+
+    private const val DAYS_PER_WEEK = 7
 }

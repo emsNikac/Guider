@@ -26,6 +26,25 @@ internal fun MacrobenchmarkScope.navigateAcrossAllScreens() {
     openDestination("Daily tasks")
 }
 
+internal fun MacrobenchmarkScope.exerciseCommonJourneys() {
+    openDestination("Sleep calculator")
+    scrollCurrentScreen()
+
+    openDestination("Habits")
+    device.wait(Until.findObject(By.text("Month")), UI_TIMEOUT_MILLIS)?.click()
+    device.waitForIdle()
+    scrollCurrentScreen()
+
+    openDestination("Bigger goals")
+    scrollCurrentScreen()
+
+    openDestination("Money management")
+    scrollCurrentScreen()
+
+    openDestination("Daily tasks")
+    scrollCurrentScreen()
+}
+
 private fun MacrobenchmarkScope.openDestination(label: String) {
     val navigationItem = device.wait(
         Until.findObject(By.desc(label)),
@@ -36,5 +55,15 @@ private fun MacrobenchmarkScope.openDestination(label: String) {
     check(device.wait(Until.hasObject(By.text(label)), UI_TIMEOUT_MILLIS)) {
         "$label did not become visible"
     }
+    device.waitForIdle()
+}
+
+private fun MacrobenchmarkScope.scrollCurrentScreen() {
+    val centerX = device.displayWidth / 2
+    val lowerY = device.displayHeight * 3 / 4
+    val upperY = device.displayHeight / 3
+    device.swipe(centerX, lowerY, centerX, upperY, 12)
+    device.waitForIdle()
+    device.swipe(centerX, upperY, centerX, lowerY, 12)
     device.waitForIdle()
 }

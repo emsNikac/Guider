@@ -15,6 +15,7 @@ object LocalizedFormatters {
         val locale: Locale,
         val timeZone: TimeZone,
     ) {
+        val reusableDate: ThreadLocal<Date> = ThreadLocal.withInitial(::Date)
         val dateFormatters = ConcurrentHashMap<String, ThreadLocal<DateFormat>>()
         val shortTimeFormatter: ThreadLocal<DateFormat> = ThreadLocal.withInitial {
             DateFormat.getTimeInstance(DateFormat.SHORT, locale).apply {
@@ -27,19 +28,28 @@ object LocalizedFormatters {
                 maximumFractionDigits = 2
             }
         }
-        val currencySymbol: String =
+        val currencySymbol: String by lazy {
             NumberFormat.getCurrencyInstance(locale).currency?.getSymbol(locale).orEmpty()
+        }
+
+        fun date(epochMillis: Long): Date = checkNotNull(reusableDate.get()).apply {
+            time = epochMillis
+        }
     }
 
+    private val cacheLock = Any()
+
     @Volatile
-    private var cache = newCache()
+    private var cache: FormatterCache? = null
 
     fun refreshConfiguration() {
-        cache = newCache()
+        synchronized(cacheLock) {
+            cache = null
+        }
     }
 
     fun formatDate(pattern: String, epochMillis: Long): String {
-        val current = cache
+        val current = currentCache()
         val formatter = checkNotNull(current.dateFormatters.computeIfAbsent(pattern) {
             ThreadLocal.withInitial {
                 SimpleDateFormat(pattern, current.locale).apply {
@@ -47,16 +57,24 @@ object LocalizedFormatters {
                 }
             }
         }.get())
-        return formatter.format(Date(epochMillis))
+        return formatter.format(current.date(epochMillis))
     }
 
-    fun formatShortTime(epochMillis: Long): String =
-        checkNotNull(cache.shortTimeFormatter.get()).format(Date(epochMillis))
+    fun formatShortTime(epochMillis: Long): String {
+        val current = currentCache()
+        return checkNotNull(current.shortTimeFormatter.get()).format(current.date(epochMillis))
+    }
 
-    fun formatCurrency(amountMinor: Long): String =
-        checkNotNull(cache.currencyFormatter.get()).format(BigDecimal.valueOf(amountMinor, 2))
+    fun formatCurrency(amountMinor: Long): String {
+        val current = currentCache()
+        return checkNotNull(current.currencyFormatter.get()).format(BigDecimal.valueOf(amountMinor, 2))
+    }
 
-    fun currencySymbol(): String = cache.currencySymbol
+    fun currencySymbol(): String = currentCache().currencySymbol
+
+    private fun currentCache(): FormatterCache = cache ?: synchronized(cacheLock) {
+        cache ?: newCache().also { cache = it }
+    }
 
     private fun newCache(): FormatterCache = FormatterCache(
         locale = Locale.getDefault(),

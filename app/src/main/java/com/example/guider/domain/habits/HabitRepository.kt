@@ -1,9 +1,18 @@
 package com.example.guider.domain.habits
 
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 
 interface HabitRepository {
     val habits: StateFlow<List<Habit>>
+    val recentCompletions: StateFlow<Map<Long, Set<Int>>>
+
+    fun observeCompletionsBetween(
+        startDayKey: Int,
+        endDayKey: Int,
+    ): Flow<Map<Long, Set<Int>>>
+
+    val goalCompletionCounts: Flow<Map<Long, Int>>
 
     suspend fun addHabit(
         name: String,

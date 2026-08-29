@@ -2,32 +2,24 @@ package com.example.guider.data.money
 
 import androidx.room.withTransaction
 import com.example.guider.data.database.GuiderDatabase
-import com.example.guider.data.database.MoneyLedgerRecord
 import com.example.guider.data.database.MoneyStateEntity
 import com.example.guider.data.database.SpendingEntity
 import com.example.guider.data.database.toModel
+import com.example.guider.data.stateInWhileSubscribed
 import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.MoneyRepository
 import com.example.guider.domain.money.Spending
 import com.example.guider.domain.time.DayKeys
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 
 class RoomMoneyRepository private constructor(
     private val database: GuiderDatabase,
-    scope: CoroutineScope,
-    initialLedger: MoneyLedger,
+    override val ledger: StateFlow<MoneyLedger>,
 ) : MoneyRepository {
     private val dao = database.moneyDao()
-
-    override val ledger: StateFlow<MoneyLedger> = dao.observeLedger()
-        .map { record -> record.toModel() }
-        .distinctUntilChanged()
-        .stateIn(scope, SharingStarted.Eagerly, initialLedger)
 
     override suspend fun addSpending(
         title: String,
@@ -63,11 +55,24 @@ class RoomMoneyRepository private constructor(
     }
 
     companion object {
-        suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomMoneyRepository =
-            RoomMoneyRepository(
+        suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomMoneyRepository {
+            val dao = database.moneyDao()
+            val ledger = combine(
+                dao.observeSpendings(),
+                dao.observeLedgerSummary(),
+            ) { spendingEntities, summary ->
+                MoneyLedger(
+                    spendings = spendingEntities.map { it.toModel() },
+                    periodStartDayKey = summary?.periodStartDayKey,
+                    totalMinor = summary?.totalMinor ?: 0L,
+                )
+            }
+                .distinctUntilChanged()
+                .stateInWhileSubscribed(scope)
+            return RoomMoneyRepository(
                 database = database,
-                scope = scope,
-                initialLedger = database.moneyDao().getLedger().toModel(),
+                ledger = ledger,
             )
+        }
     }
 }

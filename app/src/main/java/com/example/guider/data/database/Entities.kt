@@ -103,11 +103,18 @@ data class HabitRecord(
         entityColumn = "habitId",
     )
     val weekdays: List<HabitWeekdayEntity>,
-    @Relation(
-        parentColumn = "id",
-        entityColumn = "habitId",
-    )
-    val completions: List<HabitCompletionEntity>,
+)
+
+data class HabitToggleState(
+    val activeStartDayKey: Int?,
+    val activeEndDayKey: Int?,
+    val isScheduled: Boolean,
+    val isCompleted: Boolean,
+)
+
+data class GoalCompletionCount(
+    val goalId: Long,
+    val completedCheckIns: Long,
 )
 
 @Entity(tableName = "active_sleep_session")
@@ -159,13 +166,9 @@ data class SpendingEntity(
     val createdAtEpochMillis: Long,
 )
 
-data class MoneyLedgerRecord(
-    @Embedded val state: MoneyStateEntity,
-    @Relation(
-        parentColumn = "id",
-        entityColumn = "ledgerId",
-    )
-    val spendings: List<SpendingEntity>,
+data class MoneyLedgerSummary(
+    val periodStartDayKey: Int?,
+    val totalMinor: Long,
 )
 
 @Entity(tableName = "app_metadata")

@@ -91,4 +91,36 @@ class GoalProgressCalculatorTest {
         assertEquals(0, progress.expectedCheckIns)
         assertEquals(0f, progress.fraction)
     }
+
+    @Test
+    fun `expected check-ins respect an active habit subrange without scanning every day`() {
+        val goal = Goal(
+            id = 13L,
+            title = "Build consistency",
+            type = GoalType.PERIODIC,
+            createdDayKey = 20260101,
+            startDayKey = 20260101,
+            endDayKey = 20261231,
+        )
+        val habit = Habit(
+            id = 21L,
+            name = "Review the week",
+            colorHue = 210f,
+            scheduledWeekdays = setOf(HabitWeekday.MONDAY, HabitWeekday.FRIDAY),
+            linkedGoalId = goal.id,
+            activeStartDayKey = 20260817,
+            activeEndDayKey = 20260830,
+        )
+
+        val progress = GoalProgressCalculator.calculateFromCompletedCount(
+            goal = goal,
+            linkedHabits = listOf(habit),
+            completedCheckIns = 3,
+            todayDayKey = 20260823,
+        )
+
+        assertEquals(3, progress.completedCheckIns)
+        assertEquals(4, progress.expectedCheckIns)
+        assertEquals(75, progress.percentage)
+    }
 }

@@ -5,12 +5,12 @@ import com.example.guider.data.database.ActiveSleepSessionEntity
 import com.example.guider.data.database.GuiderDatabase
 import com.example.guider.data.database.SleepRecordEntity
 import com.example.guider.data.database.toModel
+import com.example.guider.data.stateInWhileSubscribed
 import com.example.guider.domain.sleep.ActiveSleepSession
 import com.example.guider.domain.sleep.SleepCycleCalculator
 import com.example.guider.domain.sleep.SleepRecord
 import com.example.guider.domain.sleep.SleepRepository
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -18,21 +18,10 @@ import kotlinx.coroutines.flow.stateIn
 
 class RoomSleepRepository private constructor(
     private val database: GuiderDatabase,
-    scope: CoroutineScope,
-    initialActiveSession: ActiveSleepSession?,
-    initialHistory: List<SleepRecord>,
+    override val activeSession: StateFlow<ActiveSleepSession?>,
+    override val history: StateFlow<List<SleepRecord>>,
 ) : SleepRepository {
     private val dao = database.sleepDao()
-
-    override val activeSession: StateFlow<ActiveSleepSession?> = dao.observeActiveSession()
-        .map { it?.toModel() }
-        .distinctUntilChanged()
-        .stateIn(scope, SharingStarted.Eagerly, initialActiveSession)
-
-    override val history: StateFlow<List<SleepRecord>> = dao.observeHistory()
-        .map { records -> records.map(SleepRecordEntity::toModel) }
-        .distinctUntilChanged()
-        .stateIn(scope, SharingStarted.Eagerly, initialHistory)
 
     override suspend fun startHibernation(activatedAtEpochMillis: Long): ActiveSleepSession =
         database.withTransaction {
@@ -69,12 +58,21 @@ class RoomSleepRepository private constructor(
     companion object {
         private const val MAX_HISTORY_RECORDS = 365
 
-        suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomSleepRepository =
-            RoomSleepRepository(
+        suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomSleepRepository {
+            val dao = database.sleepDao()
+            val activeSession = dao.observeActiveSession()
+                .map { it?.toModel() }
+                .distinctUntilChanged()
+                .stateIn(scope)
+            val history = dao.observeHistory()
+                .map { records -> records.map(SleepRecordEntity::toModel) }
+                .distinctUntilChanged()
+                .stateInWhileSubscribed(scope)
+            return RoomSleepRepository(
                 database = database,
-                scope = scope,
-                initialActiveSession = database.sleepDao().getActiveSession()?.toModel(),
-                initialHistory = database.sleepDao().getHistory().map(SleepRecordEntity::toModel),
+                activeSession = activeSession,
+                history = history,
             )
+        }
     }
 }

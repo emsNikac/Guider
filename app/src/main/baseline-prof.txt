@@ -1,0 +1,12 @@
+Lcom/example/guider/GuiderApplication;
+Lcom/example/guider/MainActivity;
+Lcom/example/guider/data/**;
+Lcom/example/guider/domain/**;
+Lcom/example/guider/ui/**;
+Lcom/example/guider/util/**;
+HPLcom/example/guider/**;->**(**)**
+HSPLcom/example/guider/GuiderApplication;->**(**)**
+HSPLcom/example/guider/MainActivity;->**(**)**
+HSPLcom/example/guider/ui/GuiderAppKt;->**(**)**
+HSPLcom/example/guider/ui/components/GuiderBottomBarKt;->**(**)**
+HSPLcom/example/guider/ui/screens/DailyTasksScreenKt;->**(**)**

@@ -14,4 +14,5 @@ data class Spending(
 data class MoneyLedger(
     val spendings: List<Spending> = emptyList(),
     val periodStartDayKey: Int? = null,
+    val totalMinor: Long = 0L,
 )

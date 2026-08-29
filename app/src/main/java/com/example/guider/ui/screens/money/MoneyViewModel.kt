@@ -5,17 +5,14 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.guider.GuiderApplication
-import com.example.guider.domain.money.MoneyCalculations
 import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.Spending
 import com.example.guider.domain.time.DayKeys
 import com.example.guider.ui.util.ImmutableListSnapshot
 import com.example.guider.ui.util.toImmutableSnapshot
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 @Immutable
@@ -30,15 +27,11 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
 
     internal val uiState = repository.ledger
         .map { ledger ->
-            withContext(Dispatchers.Default) {
-                MoneyUiState(
-                    ledger = ledger,
-                    totalMinor = MoneyCalculations.totalMinor(ledger.spendings),
-                    sortedSpendings = ledger.spendings
-                        .sortedByDescending(Spending::createdAtEpochMillis)
-                        .toImmutableSnapshot(),
-                )
-            }
+            MoneyUiState(
+                ledger = ledger,
+                totalMinor = ledger.totalMinor,
+                sortedSpendings = ledger.spendings.toImmutableSnapshot(),
+            )
         }
         .stateIn(
             scope = viewModelScope,
