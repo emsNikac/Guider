@@ -5,16 +5,17 @@ import kotlinx.coroutines.flow.StateFlow
 interface GoalRepository {
     val goals: StateFlow<List<Goal>>
 
-    fun addGoal(
+    suspend fun addGoal(
         title: String,
         type: GoalType,
         startDayKey: Int? = null,
         endDayKey: Int? = null,
+        habitInputs: List<GoalHabitInput> = emptyList(),
     ): Goal
 
-    fun toggleAchievement(goalId: Long, dayKey: Int)
+    suspend fun toggleAchievement(goalId: Long, dayKey: Int)
 
-    fun removeCompletedBefore(dayKey: Int)
+    suspend fun removeCompletedBefore(dayKey: Int)
 
-    fun deleteGoal(goalId: Long)
+    suspend fun deleteGoal(goalId: Long)
 }

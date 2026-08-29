@@ -10,6 +10,7 @@ data class Spending(
     val createdAtEpochMillis: Long,
 )
 
+@Immutable
 data class MoneyLedger(
     val spendings: List<Spending> = emptyList(),
     val periodStartDayKey: Int? = null,

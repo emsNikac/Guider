@@ -1,6 +1,7 @@
 package com.example.guider.ui.screens.money
 
 import android.app.Application
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.guider.GuiderApplication
@@ -8,16 +9,20 @@ import com.example.guider.domain.money.MoneyCalculations
 import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.Spending
 import com.example.guider.domain.time.DayKeys
+import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.ui.util.toImmutableSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
+@Immutable
 internal data class MoneyUiState(
     val ledger: MoneyLedger = MoneyLedger(),
     val totalMinor: Long = 0L,
-    val sortedSpendings: List<Spending> = emptyList(),
+    val sortedSpendings: ImmutableListSnapshot<Spending> = ImmutableListSnapshot(emptyList()),
 )
 
 class MoneyViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,33 +35,42 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
                     ledger = ledger,
                     totalMinor = MoneyCalculations.totalMinor(ledger.spendings),
                     sortedSpendings = ledger.spendings
-                        .sortedByDescending(Spending::createdAtEpochMillis),
+                        .sortedByDescending(Spending::createdAtEpochMillis)
+                        .toImmutableSnapshot(),
                 )
             }
         }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.Eagerly,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
             initialValue = MoneyUiState(),
         )
 
     fun addSpending(title: String, amountMinor: Long) {
         if (title.isNotBlank() && amountMinor > 0L) {
-            repository.addSpending(title, amountMinor)
+            viewModelScope.launch {
+                repository.addSpending(title, amountMinor)
+            }
         }
     }
 
     fun editSpending(spendingId: Long, title: String, amountMinor: Long) {
         if (title.isNotBlank() && amountMinor > 0L) {
-            repository.editSpending(spendingId, title, amountMinor)
+            viewModelScope.launch {
+                repository.editSpending(spendingId, title, amountMinor)
+            }
         }
     }
 
     fun deleteSpending(spendingId: Long) {
-        repository.deleteSpending(spendingId)
+        viewModelScope.launch {
+            repository.deleteSpending(spendingId)
+        }
     }
 
     fun restart() {
-        repository.restart(DayKeys.today())
+        viewModelScope.launch {
+            repository.restart(DayKeys.today())
+        }
     }
 }

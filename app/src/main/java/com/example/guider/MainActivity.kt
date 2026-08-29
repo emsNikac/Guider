@@ -5,10 +5,10 @@ import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
@@ -33,6 +33,18 @@ class MainActivity : ComponentActivity() {
     private val destinationRequest = mutableStateOf<GuiderDestination?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition {
+            when ((application as GuiderApplication).featureStatus(AppFeature.DAILY_TASKS)) {
+                FeatureLoadStatus.NOT_REQUESTED,
+                FeatureLoadStatus.LOADING,
+                -> true
+
+                FeatureLoadStatus.READY,
+                FeatureLoadStatus.FAILED,
+                -> false
+            }
+        }
         super.onCreate(savedInstanceState)
         handleIntent(intent)
         enableEdgeToEdge()
@@ -94,9 +106,8 @@ private fun GuiderLoadingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
     ) {
-        if (!failed) CircularProgressIndicator()
         Text(
-            text = if (failed) "Guider couldn't load" else "Loading Guider",
+            text = if (failed) "Guider couldn't load" else "Preparing Guider",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

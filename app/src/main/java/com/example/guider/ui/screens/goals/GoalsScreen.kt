@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,6 +76,7 @@ import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.util.LocalizedFormatters
 import com.example.guider.ui.screens.AddTaskDialog
+import com.example.guider.ui.util.ImmutableListSnapshot
 import com.example.guider.R
 
 @Composable
@@ -181,7 +183,7 @@ private fun GoalsScreen(
                 ) { goal ->
                     PeriodicGoalCard(
                         goal = goal,
-                        habits = linkedHabits[goal.id].orEmpty(),
+                        habits = linkedHabits[goal.id] ?: EmptyHabitSnapshot,
                         progress = periodicProgress.getValue(goal.id),
                         onAddDailyTask = { taskGoal = goal },
                         onDelete = { goalPendingDeletion = goal },
@@ -203,7 +205,7 @@ private fun GoalsScreen(
 
     taskGoal?.let { goal ->
         AddTaskDialog(
-            availableGoals = listOf(goal),
+            availableGoals = ImmutableListSnapshot(listOf(goal)),
             initialLinkedGoalId = goal.id,
             goalSelectionEnabled = false,
             onDismiss = { taskGoal = null },
@@ -370,11 +372,14 @@ private fun OneTimeGoalCard(
 @Composable
 private fun PeriodicGoalCard(
     goal: Goal,
-    habits: List<Habit>,
+    habits: ImmutableListSnapshot<Habit>,
     progress: GoalProgress,
     onAddDailyTask: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val todayDayKey = remember { DayKeys.today() }
+    val isActive = remember(goal, todayDayKey) { goal.isActive(todayDayKey) }
+    val periodLabel = remember(goal, todayDayKey) { goalPeriodLabel(goal, todayDayKey) }
     val animatedProgress by animateFloatAsState(
         targetValue = progress.fraction,
         animationSpec = tween(450, easing = FastOutSlowInEasing),
@@ -424,7 +429,7 @@ private fun PeriodicGoalCard(
             }
 
             Text(
-                text = goalPeriodLabel(goal),
+                text = periodLabel,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -471,10 +476,10 @@ private fun PeriodicGoalCard(
             OutlinedButton(
                 onClick = onAddDailyTask,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = goal.isActive(DayKeys.today()),
+                enabled = isActive,
             ) {
                 Text(
-                    if (goal.isActive(DayKeys.today())) {
+                    if (isActive) {
                         "Add a daily task for this goal"
                     } else {
                         "Goal period ended"
@@ -487,6 +492,9 @@ private fun PeriodicGoalCard(
 
 @Composable
 private fun LinkedHabitRow(habit: Habit) {
+    val schedule = remember(habit.scheduledWeekdays) {
+        scheduleLabel(habit.scheduledWeekdays)
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -513,7 +521,7 @@ private fun LinkedHabitRow(habit: Habit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = scheduleLabel(habit.scheduledWeekdays),
+                text = schedule,
                 modifier = Modifier.padding(start = 8.dp),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
@@ -601,14 +609,15 @@ private fun AddGoalDialog(
     onDismiss: () -> Unit,
     onCreate: (String, GoalType, List<GoalHabitInput>, Int?, Int?) -> Unit,
 ) {
+    val todayDayKey = remember { DayKeys.today() }
     var title by rememberSaveable { mutableStateOf("") }
     var type by rememberSaveable { mutableStateOf(GoalType.ONE_TIME) }
-    var startDayKey by rememberSaveable { mutableStateOf(DayKeys.today()) }
+    var startDayKey by rememberSaveable { mutableIntStateOf(todayDayKey) }
     var endDayKey by rememberSaveable {
-        mutableStateOf(DayKeys.addDays(DayKeys.today(), DEFAULT_GOAL_PERIOD_DAYS - 1))
+        mutableIntStateOf(DayKeys.addDays(todayDayKey, DEFAULT_GOAL_PERIOD_DAYS - 1))
     }
     val habitDrafts = remember { mutableStateListOf(HabitDraft(key = 0)) }
-    var nextDraftKey by remember { mutableStateOf(1) }
+    var nextDraftKey by remember { mutableIntStateOf(1) }
     val valid = title.isNotBlank() && (
         type == GoalType.ONE_TIME || habitDrafts.all {
             it.name.isNotBlank() && it.weekdays.isNotEmpty()
@@ -815,6 +824,9 @@ private fun GoalPeriodSelector(
     onEndSelected: (Int) -> Unit,
 ) {
     val context = LocalContext.current
+    val durationDays = remember(startDayKey, endDayKey) {
+        DayKeys.inclusiveDayCount(startDayKey, endDayKey)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text("Goal period", style = MaterialTheme.typography.titleMedium)
         Text(
@@ -853,7 +865,7 @@ private fun GoalPeriodSelector(
             )
         }
         Text(
-            text = "${DayKeys.inclusiveDayCount(startDayKey, endDayKey)} days total",
+            text = "$durationDays days total",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -867,6 +879,7 @@ private fun DateChoice(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val formattedDay = remember(dayKey) { formatDayKey(dayKey) }
     OutlinedButton(
         onClick = onClick,
         modifier = modifier.height(62.dp),
@@ -875,7 +888,7 @@ private fun DateChoice(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(label, style = MaterialTheme.typography.labelSmall)
-            Text(formatDayKey(dayKey), style = MaterialTheme.typography.labelLarge)
+            Text(formattedDay, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -1008,7 +1021,7 @@ private fun WeekdaySelector(
 
 private fun scheduleLabel(weekdays: Set<HabitWeekday>): String = when {
     weekdays.size == HabitWeekday.entries.size -> "Every day"
-    weekdays == HabitWeekday.entries.take(5).toSet() -> "Weekdays"
+    weekdays == WorkWeekdays -> "Weekdays"
     else -> weekdays
         .sortedBy(HabitWeekday::ordinal)
         .joinToString(" · ") { it.name.take(3).lowercase().replaceFirstChar(Char::uppercase) }
@@ -1053,10 +1066,10 @@ private fun DeleteGoalDialog(
     )
 }
 
-private fun goalPeriodLabel(goal: Goal): String {
+private fun goalPeriodLabel(goal: Goal, todayDayKey: Int): String {
     val startDayKey = goal.startDayKey ?: goal.createdDayKey
     val endDayKey = goal.endDayKey ?: startDayKey
-    val status = if (endDayKey < DayKeys.today()) " · Ended" else ""
+    val status = if (endDayKey < todayDayKey) " · Ended" else ""
     return "${formatDayKey(startDayKey)} – ${formatDayKey(endDayKey)} · " +
         "${DayKeys.inclusiveDayCount(startDayKey, endDayKey)} days$status"
 }
@@ -1074,3 +1087,5 @@ private const val PERIODIC_EMPTY_KEY = "periodic_empty"
 private const val ONE_TIME_GOAL_CONTENT_TYPE = "one_time_goal"
 private const val PERIODIC_GOAL_CONTENT_TYPE = "periodic_goal"
 private const val DEFAULT_GOAL_PERIOD_DAYS = 14
+private val WorkWeekdays = HabitWeekday.entries.take(5).toSet()
+private val EmptyHabitSnapshot = ImmutableListSnapshot<Habit>(emptyList())

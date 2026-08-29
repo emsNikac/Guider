@@ -6,7 +6,7 @@ interface SleepRepository {
     val activeSession: StateFlow<ActiveSleepSession?>
     val history: StateFlow<List<SleepRecord>>
 
-    fun startHibernation(activatedAtEpochMillis: Long): ActiveSleepSession
+    suspend fun startHibernation(activatedAtEpochMillis: Long): ActiveSleepSession
 
-    fun finishHibernation(endedAtEpochMillis: Long): SleepRecord?
+    suspend fun finishHibernation(endedAtEpochMillis: Long): SleepRecord?
 }

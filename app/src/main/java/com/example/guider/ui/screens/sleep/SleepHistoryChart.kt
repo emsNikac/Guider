@@ -1,11 +1,11 @@
 package com.example.guider.ui.screens.sleep
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -29,11 +31,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.example.guider.domain.sleep.SleepHistoryRange
 import com.example.guider.domain.sleep.SleepRecord
+import com.example.guider.domain.time.DayKeys
 import com.example.guider.util.LocalizedFormatters
-import java.util.Calendar
+import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.ui.util.toImmutableSnapshot
 import kotlin.math.ceil
 import kotlin.math.max
 
+@Immutable
 private data class SleepChartDay(
     val label: String,
     val hours: Float?,
@@ -41,16 +46,24 @@ private data class SleepChartDay(
 
 @Composable
 fun SleepHistoryCard(
-    records: List<SleepRecord>,
+    records: ImmutableListSnapshot<SleepRecord>,
     modifier: Modifier = Modifier,
 ) {
     var range by rememberSaveable { mutableStateOf(SleepHistoryRange.WEEK) }
     val days = remember(records, range) {
         buildChartDays(records = records, range = range, nowEpochMillis = System.currentTimeMillis())
+            .toImmutableSnapshot()
     }
-    val recordedHours = remember(days) { days.mapNotNull { it.hours } }
-    val average = remember(recordedHours) {
-        recordedHours.takeIf { it.isNotEmpty() }?.average()
+    val average = remember(days) {
+        var total = 0.0
+        var count = 0
+        days.forEach { day ->
+            day.hours?.let { hours ->
+                total += hours
+                count++
+            }
+        }
+        if (count == 0) null else total / count
     }
 
     Surface(
@@ -132,7 +145,7 @@ private fun HistoryRangeSelector(
 }
 
 @Composable
-private fun SleepLineChart(days: List<SleepChartDay>) {
+private fun SleepLineChart(days: ImmutableListSnapshot<SleepChartDay>) {
     val lineColor = MaterialTheme.colorScheme.primary
     val pointCenterColor = MaterialTheme.colorScheme.surfaceContainerLow
     val gridColor = MaterialTheme.colorScheme.outlineVariant
@@ -141,6 +154,11 @@ private fun SleepLineChart(days: List<SleepChartDay>) {
     val maximumHours = remember(values) {
         max(10f, ceil((values.maxOrNull() ?: 0f) / 2f) * 2f)
     }
+    val axisLabels = remember(maximumHours) {
+        listOf(maximumHours, maximumHours * 2 / 3, maximumHours / 3, 0f)
+            .map { hours -> "${hours.toInt()}h" }
+    }
+    val visibleChartLabels = remember(days) { chartLabels(days) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
@@ -154,59 +172,76 @@ private fun SleepLineChart(days: List<SleepChartDay>) {
                     .padding(vertical = 1.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                listOf(maximumHours, maximumHours * 2 / 3, maximumHours / 3, 0f).forEach { hours ->
+                axisLabels.forEach { label ->
                     Text(
-                        text = "${hours.toInt()}h",
+                        text = label,
                         style = MaterialTheme.typography.labelSmall,
                         color = labelColor,
                     )
                 }
             }
-            Canvas(
+            Spacer(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 30.dp, top = 6.dp, bottom = 16.dp),
-            ) {
-                val gridSteps = 3
-                repeat(gridSteps + 1) { step ->
-                    val y = size.height * step / gridSteps
-                    drawLine(
-                        color = gridColor,
-                        start = Offset(0f, y),
-                        end = Offset(size.width, y),
-                        strokeWidth = 1.dp.toPx(),
-                    )
-                }
+                    .padding(start = 30.dp, top = 6.dp, bottom = 16.dp)
+                    .drawWithCache {
+                        val gridSteps = 3
+                        val gridYPositions = FloatArray(gridSteps + 1) { step ->
+                            size.height * step / gridSteps
+                        }
+                        val xStep = if (days.size <= 1) 0f else size.width / (days.size - 1)
+                        val chartHeight = size.height
+                        val points = buildList {
+                            days.forEachIndexed { index, day ->
+                                day.hours?.let { hours ->
+                                    add(
+                                        Offset(
+                                            x = index * xStep,
+                                            y = chartHeight *
+                                                (1f - (hours / maximumHours).coerceIn(0f, 1f)),
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                        val path = if (points.size >= 2) {
+                            Path().apply {
+                                moveTo(points[0].x, points[0].y)
+                                for (index in 1 until points.size) {
+                                    lineTo(points[index].x, points[index].y)
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                        val gridStrokeWidth = 1.dp.toPx()
+                        val lineStyle = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                        val pointRadius = 4.dp.toPx()
+                        val pointCenterRadius = 1.5.dp.toPx()
 
-                val xStep = if (days.size <= 1) 0f else size.width / (days.size - 1)
-                val points = days.mapIndexedNotNull { index, day ->
-                    day.hours?.let { hours ->
-                        Offset(
-                            x = index * xStep,
-                            y = size.height * (1f - (hours / maximumHours).coerceIn(0f, 1f)),
-                        )
+                        onDrawBehind {
+                            gridYPositions.forEach { y ->
+                                drawLine(
+                                    color = gridColor,
+                                    start = Offset(0f, y),
+                                    end = Offset(size.width, y),
+                                    strokeWidth = gridStrokeWidth,
+                                )
+                            }
+                            path?.let {
+                                drawPath(path = it, color = lineColor, style = lineStyle)
+                            }
+                            points.forEach { point ->
+                                drawCircle(color = lineColor, radius = pointRadius, center = point)
+                                drawCircle(
+                                    color = pointCenterColor,
+                                    radius = pointCenterRadius,
+                                    center = point,
+                                )
+                            }
+                        }
                     }
-                }
-                if (points.size >= 2) {
-                    val path = Path().apply {
-                        moveTo(points.first().x, points.first().y)
-                        points.drop(1).forEach { point -> lineTo(point.x, point.y) }
-                    }
-                    drawPath(
-                        path = path,
-                        color = lineColor,
-                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
-                    )
-                }
-                points.forEach { point ->
-                    drawCircle(color = lineColor, radius = 4.dp.toPx(), center = point)
-                    drawCircle(
-                        color = pointCenterColor,
-                        radius = 1.5.dp.toPx(),
-                        center = point,
-                    )
-                }
-            }
+            )
 
             if (values.isEmpty()) {
                 Text(
@@ -224,7 +259,7 @@ private fun SleepLineChart(days: List<SleepChartDay>) {
                 .padding(start = 30.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            chartLabels(days).forEach { label ->
+            visibleChartLabels.forEach { label ->
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
@@ -241,25 +276,22 @@ private fun buildChartDays(
     nowEpochMillis: Long,
 ): List<SleepChartDay> {
     val labelPattern = if (range == SleepHistoryRange.WEEK) "EEE" else "d MMM"
-    val today = Calendar.getInstance().apply {
-        timeInMillis = nowEpochMillis
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
+    val todayDayKey = DayKeys.today(nowEpochMillis)
+    val durationsByWakeDay = HashMap<Int, Long>(records.size)
+    records.forEach { record ->
+        val wakeDayKey = DayKeys.today(record.endedAtEpochMillis)
+        durationsByWakeDay[wakeDayKey] =
+            durationsByWakeDay.getOrDefault(wakeDayKey, 0L) + record.durationMillis
     }
 
     return (range.dayCount - 1 downTo 0).map { daysAgo ->
-        val start = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -daysAgo) }
-        val end = (start.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
-        val hours = records
-            .filter { it.endedAtEpochMillis in start.timeInMillis until end.timeInMillis }
-            .sumOf { it.durationMillis }
+        val dayKey = DayKeys.addDays(todayDayKey, -daysAgo)
+        val hours = durationsByWakeDay.getOrDefault(dayKey, 0L)
             .takeIf { it > 0L }
             ?.div(MILLIS_PER_HOUR)
             ?.toFloat()
         SleepChartDay(
-            label = LocalizedFormatters.formatDate(labelPattern, start.timeInMillis),
+            label = LocalizedFormatters.formatDate(labelPattern, DayKeys.toEpochMillis(dayKey)),
             hours = hours,
         )
     }

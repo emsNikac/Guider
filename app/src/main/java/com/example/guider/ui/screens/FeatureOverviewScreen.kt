@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillItem
 import com.example.guider.ui.components.navigationPillScrollEffect
+import com.example.guider.ui.util.ImmutableListSnapshot
 
 @Composable
 fun FeatureOverviewScreen(
@@ -33,7 +35,7 @@ fun FeatureOverviewScreen(
     subtitle: String,
     cardTitle: String,
     cardBody: String,
-    features: List<String>,
+    features: ImmutableListSnapshot<String>,
     @DrawableRes iconRes: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -99,19 +101,19 @@ fun FeatureOverviewScreen(
             }
         }
 
-        navigationPillItem("${title}_features") {
+        navigationPillItem("${title}_features_header") {
             Text(
                 text = "Planned foundation",
                 style = MaterialTheme.typography.titleLarge,
             )
-            Column(
-                modifier = Modifier.padding(top = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                features.forEach { feature ->
-                    FeatureRow(feature)
-                }
-            }
+        }
+
+        itemsIndexed(
+            items = features,
+            key = { index, feature -> "${title}_feature_${index}_$feature" },
+            contentType = { _, _ -> FEATURE_ROW_CONTENT_TYPE },
+        ) { _, feature ->
+            FeatureRow(feature)
         }
 
         navigationPillItem("${title}_footer") {
@@ -130,6 +132,8 @@ fun FeatureOverviewScreen(
         }
     }
 }
+
+private const val FEATURE_ROW_CONTENT_TYPE = "feature_row"
 
 @Composable
 private fun FeatureRow(text: String) {

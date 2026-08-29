@@ -2,6 +2,7 @@ package com.example.guider.domain.goals
 
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitWeekday
+import com.example.guider.domain.habits.isScheduledOn
 import com.example.guider.domain.time.DayKeys
 
 object GoalProgressCalculator {
@@ -18,10 +19,10 @@ object GoalProgressCalculator {
         var expected = 0
         val startDayKey = goal.startDayKey ?: goal.createdDayKey
         val endDayKey = goal.endDayKey ?: todayDayKey
-        DayKeys.inclusiveRange(startDayKey, endDayKey).forEach { dayKey ->
+        for (dayKey in DayKeys.inclusiveRange(startDayKey, endDayKey)) {
             val weekday = HabitWeekday.fromCalendarValue(DayKeys.weekday(dayKey))
-            linkedHabits.forEach { habit ->
-                if (weekday in habit.scheduledWeekdays) {
+            for (habit in linkedHabits) {
+                if (habit.isScheduledOn(dayKey, weekday)) {
                     expected += 1
                     if (dayKey <= todayDayKey && dayKey in habit.completedDayKeys) completed += 1
                 }

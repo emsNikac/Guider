@@ -7,17 +7,21 @@ object HabitStreakCalculator {
      */
     fun currentStreak(
         completedDayKeys: Set<Int>,
-        dayKeysNewestFirst: List<Int>,
+        dayKeysNewestFirst: IntArray,
         allowIncompleteFirstDay: Boolean = true,
     ): Int {
         if (dayKeysNewestFirst.isEmpty()) return 0
-        val daysToCount = if (
-            allowIncompleteFirstDay && dayKeysNewestFirst.first() !in completedDayKeys
+        var index = if (
+            allowIncompleteFirstDay && dayKeysNewestFirst[0] !in completedDayKeys
+        ) 1 else 0
+        var streak = 0
+        while (
+            index < dayKeysNewestFirst.size &&
+            dayKeysNewestFirst[index] in completedDayKeys
         ) {
-            dayKeysNewestFirst.drop(1)
-        } else {
-            dayKeysNewestFirst
+            streak++
+            index++
         }
-        return daysToCount.takeWhile { it in completedDayKeys }.size
+        return streak
     }
 }

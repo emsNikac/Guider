@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class HabitStreakCalculatorTest {
-    private val newestDays = listOf(15, 14, 13, 12, 11)
+    private val newestDays = intArrayOf(15, 14, 13, 12, 11)
 
     @Test
     fun `counts a streak ending today`() {

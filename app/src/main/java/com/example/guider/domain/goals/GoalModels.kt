@@ -24,6 +24,7 @@ fun Goal.isActive(todayDayKey: Int): Boolean = when (type) {
     GoalType.PERIODIC -> (endDayKey ?: Int.MAX_VALUE) >= todayDayKey
 }
 
+@Immutable
 data class GoalHabitInput(
     val name: String,
     val scheduledWeekdays: Set<HabitWeekday>,

@@ -1,5 +1,8 @@
 package com.example.guider.domain.habits
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Habit(
     val id: Long,
     val name: String,
@@ -30,8 +33,14 @@ enum class HabitWeekday(
     ;
 
     companion object {
+        private val calendarValues = arrayOfNulls<HabitWeekday>(8).apply {
+            entries.forEach { weekday -> this[weekday.calendarValue] = weekday }
+        }
+
         fun fromCalendarValue(value: Int): HabitWeekday =
-            entries.first { it.calendarValue == value }
+            requireNotNull(calendarValues.getOrNull(value)) {
+                "Unsupported Calendar weekday value: $value"
+            }
     }
 }
 

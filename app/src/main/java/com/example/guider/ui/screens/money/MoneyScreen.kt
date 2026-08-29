@@ -1,8 +1,5 @@
 package com.example.guider.ui.screens.money
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -51,7 +48,6 @@ import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.R
 import com.example.guider.util.LocalizedFormatters
-import kotlin.math.roundToLong
 
 @Composable
 fun MoneyRoute(
@@ -84,15 +80,6 @@ private fun MoneyScreen(
     var spendingBeingEdited by remember { mutableStateOf<Spending?>(null) }
     var spendingPendingDeletion by remember { mutableStateOf<Spending?>(null) }
     var showRestartDialog by rememberSaveable { mutableStateOf(false) }
-    val animatedTotalMinor by animateFloatAsState(
-        targetValue = uiState.totalMinor.toFloat(),
-        animationSpec = tween(
-            durationMillis = TOTAL_ANIMATION_DURATION_MILLIS,
-            easing = FastOutSlowInEasing,
-        ),
-        label = "Total spending amount",
-    )
-
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -110,7 +97,7 @@ private fun MoneyScreen(
         }
         item(key = MONEY_TOTAL_KEY) {
             TotalSpentCard(
-                totalMinor = animatedTotalMinor.roundToLong().coerceAtLeast(0L),
+                totalMinor = uiState.totalMinor,
                 periodStartDayKey = ledger.periodStartDayKey,
             )
         }
@@ -186,23 +173,25 @@ private fun MoneyScreen(
 
 @Composable
 private fun MoneyHeader(onAddSpending: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Money management",
-                style = MaterialTheme.typography.headlineLarge,
-            )
-            Text(
-                text = "Track what you spend, not what you own.",
-                modifier = Modifier.padding(top = 3.dp),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        OutlinedButton(onClick = onAddSpending) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Money management",
+            style = MaterialTheme.typography.headlineLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "Track what you spend, not what you own.",
+            modifier = Modifier.padding(top = 3.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(
+            onClick = onAddSpending,
+            modifier = Modifier
+                .align(Alignment.End)
+                .padding(top = 10.dp),
+        ) {
             Text("Add spending")
         }
     }
@@ -213,6 +202,10 @@ private fun TotalSpentCard(
     totalMinor: Long,
     periodStartDayKey: Int?,
 ) {
+    val periodLabel = remember(periodStartDayKey) {
+        periodStartDayKey?.let { "Money spent since ${formatDayKey(it)}" }
+            ?: "Your tracking period starts with the first spending."
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -232,9 +225,7 @@ private fun TotalSpentCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = periodStartDayKey?.let {
-                    "Money spent since ${formatDayKey(it)}"
-                } ?: "Your tracking period starts with the first spending.",
+                text = periodLabel,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
             )
@@ -395,7 +386,10 @@ private fun SpendingEditorDialog(
     var amountInput by rememberSaveable(spending?.id) {
         mutableStateOf(spending?.let { MoneyCalculations.minorToInput(it.amountMinor) }.orEmpty())
     }
-    val amountMinor = MoneyCalculations.parseAmountToMinor(amountInput)
+    val amountMinor = remember(amountInput) {
+        MoneyCalculations.parseAmountToMinor(amountInput)
+    }
+    val localizedCurrencySymbol = remember { currencySymbol() }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
@@ -416,7 +410,7 @@ private fun SpendingEditorDialog(
                     onValueChange = { amountInput = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Amount") },
-                    prefix = { Text(currencySymbol()) },
+                    prefix = { Text(localizedCurrencySymbol) },
                     supportingText = {
                         if (amountInput.isNotBlank() && amountMinor == null) {
                             Text("Enter an amount greater than zero with up to 2 decimals.")
@@ -519,4 +513,3 @@ private const val MONEY_TOTAL_KEY = "money_total"
 private const val MONEY_HISTORY_HEADER_KEY = "money_history_header"
 private const val MONEY_EMPTY_KEY = "money_empty"
 private const val MONEY_SPENDING_CONTENT_TYPE = "money_spending"
-private const val TOTAL_ANIMATION_DURATION_MILLIS = 850

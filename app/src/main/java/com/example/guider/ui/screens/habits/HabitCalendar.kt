@@ -2,6 +2,7 @@ package com.example.guider.ui.screens.habits
 
 import com.example.guider.domain.habits.HabitTrackerRange
 import com.example.guider.domain.habits.HabitWeekday
+import com.example.guider.domain.time.DayKeys
 import com.example.guider.util.LocalizedFormatters
 import java.util.Calendar
 
@@ -30,17 +31,12 @@ internal object HabitCalendar {
         HabitTrackerRange.MONTH -> month(offset, nowEpochMillis)
     }
 
-    fun recentDayKeys(nowEpochMillis: Long, count: Int): List<Int> {
-        val day = dayCalendar(nowEpochMillis)
-        return buildList(count) {
-            repeat(count) {
-                add(dayKey(day))
-                day.add(Calendar.DAY_OF_YEAR, -1)
-            }
-        }
+    fun recentDayKeys(nowEpochMillis: Long, count: Int): IntArray {
+        val todayDayKey = DayKeys.today(nowEpochMillis)
+        return IntArray(count) { index -> DayKeys.addDays(todayDayKey, -index) }
     }
 
-    fun dayKey(epochMillis: Long): Int = dayKey(dayCalendar(epochMillis))
+    fun dayKey(epochMillis: Long): Int = DayKeys.today(epochMillis)
 
     private fun week(offset: Int, nowEpochMillis: Long): HabitPeriod {
         val today = dayCalendar(nowEpochMillis)

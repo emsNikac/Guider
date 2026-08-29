@@ -1,7 +1,6 @@
 package com.example.guider.ui.components
 
 import android.annotation.SuppressLint
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -27,9 +26,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.semantics.Role
@@ -44,6 +44,7 @@ internal fun GuiderBottomBar(
     selectedDestination: GuiderDestination,
     onDestinationSelected: (GuiderDestination) -> Unit,
 ) {
+    val backgroundColor = MaterialTheme.colorScheme.background
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -54,11 +55,21 @@ internal fun GuiderBottomBar(
             modifier = Modifier
                 .matchParentSize()
                 .padding(4.dp)
-                .blur(8.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
-                .background(
-                    color = MaterialTheme.colorScheme.background.copy(alpha = 0.68f),
-                    shape = RoundedCornerShape(30.dp),
-                ),
+                .drawWithCache {
+                    val cornerRadius = 30.dp.toPx()
+                    val scrim = Brush.verticalGradient(
+                        colors = listOf(
+                            backgroundColor.copy(alpha = 0.38f),
+                            backgroundColor.copy(alpha = 0.78f),
+                        ),
+                    )
+                    onDrawBehind {
+                        drawRoundRect(
+                            brush = scrim,
+                            cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+                        )
+                    }
+                },
         )
         Surface(
             modifier = Modifier
@@ -119,14 +130,11 @@ private fun BottomBarItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val iconColor by animateColorAsState(
-        targetValue = if (selected) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        label = "Bottom navigation icon",
-    )
+    val iconColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     Box(
         modifier = modifier

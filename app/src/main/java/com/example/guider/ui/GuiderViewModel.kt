@@ -38,16 +38,24 @@ class GuiderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun addTask(title: String, category: TaskCategory, linkedGoalId: Long?) {
-        if (title.isNotBlank()) taskRepository.addTask(title, category, linkedGoalId)
+        if (title.isNotBlank()) {
+            viewModelScope.launch {
+                taskRepository.addTask(title, category, linkedGoalId)
+            }
+        }
     }
 
     fun setTaskFinished(taskId: Long, finished: Boolean) {
-        taskRepository.setFinished(taskId, finished, DayKeys.today())
+        viewModelScope.launch {
+            taskRepository.setFinished(taskId, finished, DayKeys.today())
+        }
     }
 
     fun refreshDayBoundContent() {
-        val today = DayKeys.today()
-        taskRepository.removeCompletedBefore(today)
-        guiderApplication.goalRepositoryState.value?.removeCompletedBefore(today)
+        viewModelScope.launch {
+            val today = DayKeys.today()
+            taskRepository.removeCompletedBefore(today)
+            guiderApplication.goalRepositoryState.value?.removeCompletedBefore(today)
+        }
     }
 }

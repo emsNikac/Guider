@@ -51,6 +51,9 @@ import com.example.guider.ui.screens.goals.GoalsRoute
 import com.example.guider.ui.screens.habits.HabitsRoute
 import com.example.guider.ui.screens.money.MoneyRoute
 import com.example.guider.ui.screens.sleep.SleepCalculatorRoute
+import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.ui.util.ImmutableMapSnapshot
+import com.example.guider.ui.util.toImmutableSnapshot
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -79,15 +82,18 @@ fun GuiderApp(
     var showAddTaskDialog by remember { mutableStateOf(false) }
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     val goals by viewModel.goals.collectAsStateWithLifecycle()
-    val goalTitlesById = remember(goals) { goals.associate { it.id to it.title } }
-    val activeGoals = remember(goals) { goals.filter { it.isActive(DayKeys.today()) } }
+    val taskSnapshot = remember(tasks) { tasks.toImmutableSnapshot() }
+    val goalTitlesById = remember(goals) {
+        goals.associate { it.id to it.title }.toImmutableSnapshot()
+    }
+    val activeGoals = remember(goals) {
+        goals.filter { it.isActive(DayKeys.today()) }.toImmutableSnapshot()
+    }
     val destinations = GuiderDestination.entries
     val pagerState = rememberPagerState(
         initialPage = GuiderDestination.DAILY_TASKS.ordinal,
         pageCount = { destinations.size },
     )
-    val navigationDestination = destinations[pagerState.targetPage]
-    val settledDestination = destinations[pagerState.settledPage]
     val pageAnimationSpec = remember {
         tween<Float>(durationMillis = 280, easing = FastOutSlowInEasing)
     }
@@ -118,6 +124,7 @@ fun GuiderApp(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
+            val navigationDestination = destinations[pagerState.targetPage]
             GuiderBottomBar(
                 selectedDestination = navigationDestination,
                 onDestinationSelected = { destination ->
@@ -138,6 +145,7 @@ fun GuiderApp(
             )
         },
         floatingActionButton = {
+            val settledDestination = destinations[pagerState.settledPage]
             if (settledDestination == GuiderDestination.DAILY_TASKS) {
                 FloatingActionButton(
                     onClick = {
@@ -159,13 +167,13 @@ fun GuiderApp(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { page -> destinations[page] },
-            beyondViewportPageCount = 1,
+            beyondViewportPageCount = 0,
         ) { page ->
             val destination = destinations[page]
             if (destination == GuiderDestination.DAILY_TASKS) {
                 DailyTasksDestinationContent(
                     contentPadding = innerPadding,
-                    tasks = tasks,
+                    tasks = taskSnapshot,
                     selectedCategory = selectedCategory,
                     onCategorySelected = { category ->
                         selectedCategory = if (selectedCategory == category) null else category
@@ -204,8 +212,8 @@ internal fun shouldAnimatePageChange(currentPage: Int, targetPage: Int): Boolean
 @Composable
 private fun DailyTasksDestinationContent(
     contentPadding: PaddingValues,
-    tasks: List<DailyTask>,
-    goalTitlesById: Map<Long, String>,
+    tasks: ImmutableListSnapshot<DailyTask>,
+    goalTitlesById: ImmutableMapSnapshot<Long, String>,
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
@@ -347,7 +355,12 @@ private fun FeaturePlaceholder(
                 Text("Try again")
             }
         } else {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(0.56f))
+            LinearProgressIndicator(
+                progress = { 0.35f },
+                modifier = Modifier.fillMaxWidth(0.56f),
+                gapSize = 0.dp,
+                drawStopIndicator = {},
+            )
         }
     }
 }

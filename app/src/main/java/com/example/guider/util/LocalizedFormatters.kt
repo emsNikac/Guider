@@ -9,72 +9,57 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 
-/** Reuses the relatively expensive locale formatters while keeping them thread-confined. */
+/** Reuses locale formatters without resolving Locale and TimeZone before every lookup. */
 object LocalizedFormatters {
-    private data class DateFormatterKey(
-        val pattern: String,
-        val localeTag: String,
-        val timeZoneId: String,
-    )
+    private class FormatterCache(
+        val locale: Locale,
+        val timeZone: TimeZone,
+    ) {
+        val dateFormatters = ConcurrentHashMap<String, ThreadLocal<DateFormat>>()
+        val shortTimeFormatter: ThreadLocal<DateFormat> = ThreadLocal.withInitial {
+            DateFormat.getTimeInstance(DateFormat.SHORT, locale).apply {
+                timeZone = this@FormatterCache.timeZone
+            }
+        }
+        val currencyFormatter: ThreadLocal<NumberFormat> = ThreadLocal.withInitial {
+            NumberFormat.getCurrencyInstance(locale).apply {
+                minimumFractionDigits = 2
+                maximumFractionDigits = 2
+            }
+        }
+        val currencySymbol: String =
+            NumberFormat.getCurrencyInstance(locale).currency?.getSymbol(locale).orEmpty()
+    }
 
-    private val dateFormatters =
-        ConcurrentHashMap<DateFormatterKey, ThreadLocal<DateFormat>>()
-    private val timeFormatters =
-        ConcurrentHashMap<DateFormatterKey, ThreadLocal<DateFormat>>()
-    private val currencyFormatters =
-        ConcurrentHashMap<String, ThreadLocal<NumberFormat>>()
+    @Volatile
+    private var cache = newCache()
+
+    fun refreshConfiguration() {
+        cache = newCache()
+    }
 
     fun formatDate(pattern: String, epochMillis: Long): String {
-        val key = currentDateKey(pattern)
-        val formatter = checkNotNull(dateFormatters.computeIfAbsent(key) {
+        val current = cache
+        val formatter = checkNotNull(current.dateFormatters.computeIfAbsent(pattern) {
             ThreadLocal.withInitial {
-                SimpleDateFormat(pattern, Locale.forLanguageTag(key.localeTag)).apply {
-                    timeZone = TimeZone.getTimeZone(key.timeZoneId)
+                SimpleDateFormat(pattern, current.locale).apply {
+                    timeZone = current.timeZone
                 }
             }
         }.get())
         return formatter.format(Date(epochMillis))
     }
 
-    fun formatShortTime(epochMillis: Long): String {
-        val key = currentDateKey(SHORT_TIME_KEY)
-        val formatter = checkNotNull(timeFormatters.computeIfAbsent(key) {
-            ThreadLocal.withInitial {
-                DateFormat.getTimeInstance(
-                    DateFormat.SHORT,
-                    Locale.forLanguageTag(key.localeTag),
-                ).apply {
-                    timeZone = TimeZone.getTimeZone(key.timeZoneId)
-                }
-            }
-        }.get())
-        return formatter.format(Date(epochMillis))
-    }
+    fun formatShortTime(epochMillis: Long): String =
+        checkNotNull(cache.shortTimeFormatter.get()).format(Date(epochMillis))
 
     fun formatCurrency(amountMinor: Long): String =
-        currencyFormatter().format(BigDecimal.valueOf(amountMinor, 2))
+        checkNotNull(cache.currencyFormatter.get()).format(BigDecimal.valueOf(amountMinor, 2))
 
-    fun currencySymbol(): String =
-        currencyFormatter().currency?.getSymbol(Locale.getDefault()).orEmpty()
+    fun currencySymbol(): String = cache.currencySymbol
 
-    private fun currencyFormatter(): NumberFormat {
-        val locale = Locale.getDefault()
-        val localeTag = locale.toLanguageTag()
-        return checkNotNull(currencyFormatters.computeIfAbsent(localeTag) {
-            ThreadLocal.withInitial {
-                NumberFormat.getCurrencyInstance(locale).apply {
-                    minimumFractionDigits = 2
-                    maximumFractionDigits = 2
-                }
-            }
-        }.get())
-    }
-
-    private fun currentDateKey(pattern: String): DateFormatterKey = DateFormatterKey(
-        pattern = pattern,
-        localeTag = Locale.getDefault().toLanguageTag(),
-        timeZoneId = TimeZone.getDefault().id,
+    private fun newCache(): FormatterCache = FormatterCache(
+        locale = Locale.getDefault(),
+        timeZone = TimeZone.getDefault(),
     )
-
-    private const val SHORT_TIME_KEY = "localized-short-time"
 }

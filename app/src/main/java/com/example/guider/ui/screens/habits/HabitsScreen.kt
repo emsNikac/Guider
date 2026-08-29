@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,7 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -72,6 +73,8 @@ import com.example.guider.domain.habits.HabitWeekday
 import com.example.guider.domain.habits.isScheduledOn
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
+import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.ui.util.toImmutableSnapshot
 import kotlinx.coroutines.delay
 
 @Composable
@@ -80,9 +83,10 @@ fun HabitsRoute(
     viewModel: HabitsViewModel = viewModel(),
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
+    val habitSnapshot = remember(habits) { habits.toImmutableSnapshot() }
 
     HabitsScreen(
-        habits = habits,
+        habits = habitSnapshot,
         onAddHabit = viewModel::addHabit,
         onToggleCompletion = viewModel::toggleCompletion,
         onDeleteHabit = viewModel::deleteHabit,
@@ -92,7 +96,7 @@ fun HabitsRoute(
 
 @Composable
 private fun HabitsScreen(
-    habits: List<Habit>,
+    habits: ImmutableListSnapshot<Habit>,
     onAddHabit: (String, Set<HabitWeekday>) -> Unit,
     onToggleCompletion: (Long, Int) -> Unit,
     onDeleteHabit: (Long) -> Unit,
@@ -103,8 +107,11 @@ private fun HabitsScreen(
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showDeletionPicker by rememberSaveable { mutableStateOf(false) }
     var habitPendingDeletion by remember { mutableStateOf<Habit?>(null) }
-    val nowEpochMillis = System.currentTimeMillis()
-    val todayKey = HabitCalendar.dayKey(nowEpochMillis)
+    val nowEpochMillis = remember { System.currentTimeMillis() }
+    val todayKey = remember(nowEpochMillis) { HabitCalendar.dayKey(nowEpochMillis) }
+    val recentDayKeys = remember(todayKey) {
+        HabitCalendar.recentDayKeys(nowEpochMillis = nowEpochMillis, count = 366)
+    }
     val period = remember(range, periodOffset, todayKey) {
         HabitCalendar.period(
             range = range,
@@ -172,12 +179,21 @@ private fun HabitsScreen(
             )
         }
 
-        item(key = HABITS_STREAKS_KEY) {
-            HabitStreaks(
-                habits = habits,
-                nowEpochMillis = nowEpochMillis,
-                todayKey = todayKey,
+        item(key = HABITS_STREAKS_HEADER_KEY) {
+            HabitStreaksHeader(
+                hasHabits = habits.isNotEmpty(),
                 onDeleteMenuRequested = { showDeletionPicker = true },
+            )
+        }
+        items(
+            items = habits,
+            key = { habit -> "habit_streak_${habit.id}" },
+            contentType = { HABIT_STREAK_CONTENT_TYPE },
+        ) { habit ->
+            HabitStreakCard(
+                habit = habit,
+                recentDayKeys = recentDayKeys,
+                todayKey = todayKey,
             )
         }
     }
@@ -439,7 +455,7 @@ private fun CompactMonthHabitGrid(
                                 Box(
                                     modifier = Modifier
                                         .size(squareSize)
-                                        .clip(RoundedCornerShape(2.dp))
+                                        .clip(MonthCompletionShape)
                                         .background(
                                             if (completed) {
                                                 color
@@ -453,7 +469,7 @@ private fun CompactMonthHabitGrid(
                                         )
                                         .then(
                                             if (day.isToday) {
-                                                Modifier.border(0.5.dp, color, RoundedCornerShape(2.dp))
+                                                Modifier.border(0.5.dp, color, MonthCompletionShape)
                                             } else {
                                                 Modifier
                                             },
@@ -595,7 +611,7 @@ private fun HabitCompletionRow(
     onToggleCompletion: (Long, Int) -> Unit,
 ) {
     val color = habitColor(habit)
-    val dayKeys = remember(days) { days.map(HabitDay::key) }
+    val periodIdentity = days.firstOrNull()?.key
     val dueDays = remember(
         habit.scheduledWeekdays,
         habit.activeStartDayKey,
@@ -606,16 +622,18 @@ private fun HabitCompletionRow(
             !day.isFuture && habit.isScheduledOn(day.key, day.weekday)
         }
     }
-    var celebrationTrigger by remember(habit.id, dayKeys) {
+    val incompleteDueDayCount = remember(dueDays, habit.completedDayKeys) {
+        dueDays.count { day -> day.key !in habit.completedDayKeys }
+    }
+    var celebrationTrigger by remember(habit.id, periodIdentity) {
         mutableIntStateOf(0)
     }
     Row {
         days.forEachIndexed { index, day ->
             val completed = day.key in habit.completedDayKeys
             val scheduled = habit.isScheduledOn(day.key, day.weekday)
-            val completesWeek = scheduled && !completed && dueDays.all { visibleDay ->
-                visibleDay.key == day.key || visibleDay.key in habit.completedDayKeys
-            }
+            val completesWeek =
+                !day.isFuture && scheduled && !completed && incompleteDueDayCount == 1
             HabitCompletionCell(
                 habitName = habit.name,
                 day = day,
@@ -649,7 +667,7 @@ private fun HabitCompletionCell(
     onToggle: () -> Unit,
 ) {
     val emptyAlpha = if (day.isFuture) 0.05f else 0.14f
-    val cellColor by animateColorAsState(
+    val cellColor = animateColorAsState(
         targetValue = when {
             completed -> color
             !scheduled -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f)
@@ -672,9 +690,6 @@ private fun HabitCompletionCell(
             animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing),
         )
     }
-    val shape = RoundedCornerShape(9.dp)
-    val pulse = celebrationPulse.value
-
     Box(
         modifier = Modifier
             .width(dayColumnWidth)
@@ -684,30 +699,29 @@ private fun HabitCompletionCell(
         Box(
             modifier = Modifier
                 .size(completionSize)
-                .shadow(
-                    elevation = (pulse * 18f).dp,
-                    shape = shape,
-                    ambientColor = color,
-                    spotColor = color,
-                )
                 .graphicsLayer {
+                    val pulse = celebrationPulse.value
                     val scale = 1f + pulse * 0.24f
                     scaleX = scale
                     scaleY = scale
                     translationY = -pulse * 7f
                     rotationZ = pulse * if (celebrationIndex % 2 == 0) 8f else -8f
+                    shadowElevation = pulse * 18.dp.toPx()
+                    shape = HabitCompletionShape
+                    clip = true
+                    ambientShadowColor = color
+                    spotShadowColor = color
                 }
-                .clip(shape)
                 .toggleable(
                     value = completed,
                     enabled = !day.isFuture && scheduled,
                     role = Role.Checkbox,
                     onValueChange = { onToggle() },
                 )
-                .background(cellColor)
+                .drawBehind { drawRect(cellColor.value) }
                 .then(
                     if (day.isToday) {
-                        Modifier.border(1.dp, color, shape)
+                        Modifier.border(1.dp, color, HabitCompletionShape)
                     } else {
                         Modifier
                     },
@@ -726,23 +740,10 @@ private fun HabitCompletionCell(
 }
 
 @Composable
-private fun HabitStreaks(
-    habits: List<Habit>,
-    nowEpochMillis: Long,
-    todayKey: Int,
+private fun HabitStreaksHeader(
+    hasHabits: Boolean,
     onDeleteMenuRequested: () -> Unit,
 ) {
-    val recentDayKeys = remember(todayKey) {
-        HabitCalendar.recentDayKeys(
-            nowEpochMillis = nowEpochMillis,
-            count = 366,
-        )
-    }
-    val todayWeekday = remember(todayKey) {
-        com.example.guider.domain.habits.HabitWeekday.fromCalendarValue(
-            com.example.guider.domain.time.DayKeys.weekday(todayKey),
-        )
-    }
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -755,7 +756,7 @@ private fun HabitStreaks(
             )
             IconButton(
                 onClick = onDeleteMenuRequested,
-                enabled = habits.isNotEmpty(),
+                enabled = hasHabits,
             ) {
                 Icon(
                     painter = painterResource(R.drawable.delete_ic),
@@ -769,55 +770,70 @@ private fun HabitStreaks(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        habits.forEach { habit ->
-            val streak = remember(
-                habit.completedDayKeys,
-                habit.scheduledWeekdays,
-                habit.activeStartDayKey,
-                habit.activeEndDayKey,
-                todayKey,
-            ) {
-                HabitStreakCalculator.currentStreak(
-                    completedDayKeys = habit.completedDayKeys,
-                    dayKeysNewestFirst = recentDayKeys.filter { dayKey ->
-                        com.example.guider.domain.habits.HabitWeekday.fromCalendarValue(
-                            com.example.guider.domain.time.DayKeys.weekday(dayKey),
-                        ).let { weekday -> habit.isScheduledOn(dayKey, weekday) }
-                    },
-                    allowIncompleteFirstDay = habit.isScheduledOn(todayKey, todayWeekday),
-                )
+    }
+}
+
+@Composable
+private fun HabitStreakCard(
+    habit: Habit,
+    recentDayKeys: IntArray,
+    todayKey: Int,
+) {
+    val todayWeekday = remember(todayKey) {
+        HabitWeekday.fromCalendarValue(com.example.guider.domain.time.DayKeys.weekday(todayKey))
+    }
+    val streak = remember(
+        habit.completedDayKeys,
+        habit.scheduledWeekdays,
+        habit.activeStartDayKey,
+        habit.activeEndDayKey,
+        todayKey,
+    ) {
+        val scheduledKeys = IntArray(recentDayKeys.size)
+        var scheduledCount = 0
+        for (dayKey in recentDayKeys) {
+            val weekday = HabitWeekday.fromCalendarValue(
+                com.example.guider.domain.time.DayKeys.weekday(dayKey),
+            )
+            if (habit.isScheduledOn(dayKey, weekday)) {
+                scheduledKeys[scheduledCount++] = dayKey
             }
-            val color = habitColor(habit)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = color.copy(alpha = 0.12f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .background(color, CircleShape),
-                    )
-                    Text(
-                        text = habit.name,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 9.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Text(
-                        text = if (streak == 1) "1 check-in" else "$streak check-ins",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = color,
-                    )
-                }
-            }
+        }
+        HabitStreakCalculator.currentStreak(
+            completedDayKeys = habit.completedDayKeys,
+            dayKeysNewestFirst = scheduledKeys.copyOf(scheduledCount),
+            allowIncompleteFirstDay = habit.isScheduledOn(todayKey, todayWeekday),
+        )
+    }
+    val color = habitColor(habit)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = HabitStreakShape,
+        color = color.copy(alpha = 0.12f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(color, CircleShape),
+            )
+            Text(
+                text = habit.name,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 9.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = if (streak == 1) "1 check-in" else "$streak check-ins",
+                style = MaterialTheme.typography.titleSmall,
+                color = color,
+            )
         }
     }
 }
@@ -1065,13 +1081,18 @@ private fun AddHabitDialog(
 @Composable
 private fun habitColor(habit: Habit): Color {
     val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    return Color.hsl(
-        hue = habit.colorHue,
-        saturation = if (darkTheme) 0.55f else 0.58f,
-        lightness = if (darkTheme) 0.67f else 0.43f,
-    )
+    return remember(habit.colorHue, darkTheme) {
+        Color.hsl(
+            hue = habit.colorHue,
+            saturation = if (darkTheme) 0.55f else 0.58f,
+            lightness = if (darkTheme) 0.67f else 0.43f,
+        )
+    }
 }
 
+private val HabitCompletionShape = RoundedCornerShape(9.dp)
+private val MonthCompletionShape = RoundedCornerShape(2.dp)
+private val HabitStreakShape = RoundedCornerShape(16.dp)
 private val WeeklyHabitNameColumnWidth = 96.dp
 private val WeeklyCompletionSize = 24.dp
 private val MatrixHeaderHeight = 52.dp
@@ -1081,4 +1102,5 @@ private val MonthMatrixRowHeight = 9.dp
 private const val HABITS_HEADER_KEY = "habits_header"
 private const val HABITS_CONTROLS_KEY = "habits_controls"
 private const val HABITS_MATRIX_KEY = "habits_matrix"
-private const val HABITS_STREAKS_KEY = "habits_streaks"
+private const val HABITS_STREAKS_HEADER_KEY = "habits_streaks_header"
+private const val HABIT_STREAK_CONTENT_TYPE = "habit_streak"

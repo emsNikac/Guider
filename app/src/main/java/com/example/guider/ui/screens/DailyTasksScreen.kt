@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,9 +16,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -54,16 +53,18 @@ import com.example.guider.domain.goals.Goal
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.ui.theme.taskCategoryPalette
+import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.ui.util.ImmutableMapSnapshot
 import com.example.guider.util.LocalizedFormatters
 import java.util.Locale
 
 @Composable
 fun DailyTasksScreen(
-    tasks: List<DailyTask>,
+    tasks: ImmutableListSnapshot<DailyTask>,
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
-    goalTitlesById: Map<Long, String> = emptyMap(),
+    goalTitlesById: ImmutableMapSnapshot<Long, String> = ImmutableMapSnapshot(emptyMap()),
     modifier: Modifier = Modifier,
 ) {
     val filteredTasks = remember(tasks, selectedCategory) {
@@ -242,7 +243,7 @@ private fun CategorySection(
             title = "Categories",
             supportingText = selectedCategory?.let { "Tap again to show all" },
         )
-        TaskCategory.entries.toList().chunked(2).forEach { rowCategories ->
+        TaskCategoryRows.forEach { rowCategories ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -373,13 +374,16 @@ private fun DailyTaskCard(
 @Composable
 private fun CategoryBadge(category: TaskCategory) {
     val palette = taskCategoryPalette(category)
+    val uppercaseName = remember(category) {
+        category.displayName.uppercase(Locale.getDefault())
+    }
     Surface(
         shape = RoundedCornerShape(7.dp),
         color = palette.container,
         contentColor = palette.content,
     ) {
         Text(
-            text = category.displayName.uppercase(Locale.getDefault()),
+            text = uppercaseName,
             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelSmall,
         )
@@ -440,7 +444,7 @@ private fun SectionTitle(
 fun AddTaskDialog(
     onDismiss: () -> Unit,
     onAddTask: (String, TaskCategory, Long?) -> Unit,
-    availableGoals: List<Goal> = emptyList(),
+    availableGoals: ImmutableListSnapshot<Goal> = ImmutableListSnapshot(emptyList()),
     initialLinkedGoalId: Long? = null,
     goalSelectionEnabled: Boolean = true,
 ) {
@@ -449,7 +453,9 @@ fun AddTaskDialog(
     var linkedGoalId by rememberSaveable(initialLinkedGoalId) {
         mutableStateOf(initialLinkedGoalId)
     }
-    val initialGoalTitle = availableGoals.firstOrNull { it.id == initialLinkedGoalId }?.title
+    val initialGoalTitle = remember(availableGoals, initialLinkedGoalId) {
+        availableGoals.firstOrNull { it.id == initialLinkedGoalId }?.title
+    }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
@@ -489,7 +495,7 @@ fun AddTaskDialog(
                     text = "Category",
                     style = MaterialTheme.typography.labelLarge,
                 )
-                TaskCategory.entries.toList().chunked(2).forEach { categories ->
+                TaskCategoryRows.forEach { categories ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -530,18 +536,22 @@ private fun GoalLinkSelector(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text("Linked goal (optional)", style = MaterialTheme.typography.labelLarge)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            GoalLinkChoice(
-                title = "No goal",
-                selected = selectedGoalId == null,
-                onClick = { onSelected(null) },
-            )
-            goals.forEach { goal ->
+            item(key = NO_GOAL_CHOICE_KEY, contentType = GOAL_LINK_CONTENT_TYPE) {
+                GoalLinkChoice(
+                    title = "No goal",
+                    selected = selectedGoalId == null,
+                    onClick = { onSelected(null) },
+                )
+            }
+            items(
+                items = goals,
+                key = Goal::id,
+                contentType = { GOAL_LINK_CONTENT_TYPE },
+            ) { goal ->
                 GoalLinkChoice(
                     title = goal.title,
                     selected = selectedGoalId == goal.id,
@@ -558,6 +568,10 @@ private fun GoalLinkSelector(
         }
     }
 }
+
+private val TaskCategoryRows = TaskCategory.entries.chunked(2)
+private const val NO_GOAL_CHOICE_KEY = "no_goal"
+private const val GOAL_LINK_CONTENT_TYPE = "goal_link_choice"
 
 @Composable
 private fun GoalLinkChoice(

@@ -57,6 +57,8 @@ import com.example.guider.domain.sleep.SleepCycleSuggestion
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillItem
 import com.example.guider.ui.components.navigationPillScrollEffect
+import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.ui.util.toImmutableSnapshot
 import com.example.guider.util.LocalizedFormatters
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -77,8 +79,9 @@ fun SleepCalculatorRoute(
     )
     val referenceTime = manualReferenceTime ?: deviceTime
     val suggestions = remember(referenceTime) {
-        SleepCycleCalculator.suggestions(referenceTime)
+        SleepCycleCalculator.suggestions(referenceTime).toImmutableSnapshot()
     }
+    val historySnapshot = remember(history) { history.toImmutableSnapshot() }
     val context = LocalContext.current
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -93,7 +96,7 @@ fun SleepCalculatorRoute(
         suggestions = suggestions,
         activeSession = activeSession,
         notificationPermissionDenied = notificationPermissionDenied,
-        history = history,
+        history = historySnapshot,
         onChooseTime = { showTimePicker = true },
         onUseDeviceTime = { manualReferenceTime = null },
         onActivateHibernation = {
@@ -130,10 +133,10 @@ fun SleepCalculatorRoute(
 private fun SleepCalculatorScreen(
     referenceTimeEpochMillis: Long,
     isUsingDeviceTime: Boolean,
-    suggestions: List<SleepCycleSuggestion>,
+    suggestions: ImmutableListSnapshot<SleepCycleSuggestion>,
     activeSession: ActiveSleepSession?,
     notificationPermissionDenied: Boolean,
-    history: List<com.example.guider.domain.sleep.SleepRecord>,
+    history: ImmutableListSnapshot<com.example.guider.domain.sleep.SleepRecord>,
     onChooseTime: () -> Unit,
     onUseDeviceTime: () -> Unit,
     onActivateHibernation: () -> Unit,

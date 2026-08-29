@@ -2,8 +2,10 @@ package com.example.guider.ui.screens.sleep
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.guider.GuiderApplication
 import com.example.guider.domain.sleep.SleepRepository
+import kotlinx.coroutines.launch
 
 class SleepViewModel(application: Application) : AndroidViewModel(application) {
     private val guiderApplication = application as GuiderApplication
@@ -13,14 +15,18 @@ class SleepViewModel(application: Application) : AndroidViewModel(application) {
     val history = repository.history
 
     fun activateHibernation(nowEpochMillis: Long = System.currentTimeMillis()) {
-        val session = repository.startHibernation(nowEpochMillis)
-        guiderApplication.hibernationNotificationManager.showActiveSession(session)
-        guiderApplication.hibernationPromptScheduler.schedule(session, nowEpochMillis)
+        viewModelScope.launch {
+            val session = repository.startHibernation(nowEpochMillis)
+            guiderApplication.hibernationNotificationManager.showActiveSession(session)
+            guiderApplication.hibernationPromptScheduler.schedule(session, nowEpochMillis)
+        }
     }
 
     fun finishHibernation(nowEpochMillis: Long = System.currentTimeMillis()) {
-        repository.finishHibernation(nowEpochMillis)
-        guiderApplication.hibernationNotificationManager.cancelActiveSession()
-        guiderApplication.hibernationPromptScheduler.cancel()
+        viewModelScope.launch {
+            repository.finishHibernation(nowEpochMillis)
+            guiderApplication.hibernationNotificationManager.cancelActiveSession()
+            guiderApplication.hibernationPromptScheduler.cancel()
+        }
     }
 }

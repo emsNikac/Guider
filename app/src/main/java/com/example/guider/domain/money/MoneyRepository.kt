@@ -5,15 +5,15 @@ import kotlinx.coroutines.flow.StateFlow
 interface MoneyRepository {
     val ledger: StateFlow<MoneyLedger>
 
-    fun addSpending(
+    suspend fun addSpending(
         title: String,
         amountMinor: Long,
         createdAtEpochMillis: Long = System.currentTimeMillis(),
     ): Spending
 
-    fun editSpending(spendingId: Long, title: String, amountMinor: Long)
+    suspend fun editSpending(spendingId: Long, title: String, amountMinor: Long)
 
-    fun deleteSpending(spendingId: Long)
+    suspend fun deleteSpending(spendingId: Long)
 
-    fun restart(dayKey: Int)
+    suspend fun restart(dayKey: Int)
 }

@@ -1,21 +1,28 @@
 package com.example.guider
 
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.work.Configuration
-import com.example.guider.data.goals.SharedPreferencesGoalRepository
-import com.example.guider.data.habits.SharedPreferencesHabitRepository
-import com.example.guider.data.money.SharedPreferencesMoneyRepository
-import com.example.guider.data.sleep.SharedPreferencesSleepRepository
-import com.example.guider.data.tasks.SharedPreferencesDailyTaskRepository
+import com.example.guider.data.database.GuiderDatabase
+import com.example.guider.data.database.LegacyPreferencesImporter
+import com.example.guider.data.goals.RoomGoalRepository
+import com.example.guider.data.habits.RoomHabitRepository
+import com.example.guider.data.money.RoomMoneyRepository
+import com.example.guider.data.sleep.RoomSleepRepository
+import com.example.guider.data.tasks.RoomDailyTaskRepository
 import com.example.guider.domain.goals.GoalRepository
-import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.habits.HabitRepository
 import com.example.guider.domain.money.MoneyRepository
 import com.example.guider.domain.sleep.SleepRepository
 import com.example.guider.domain.tasks.DailyTaskRepository
 import com.example.guider.notifications.HibernationNotificationManager
 import com.example.guider.notifications.HibernationPromptScheduler
+import com.example.guider.util.LocalizedFormatters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +36,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 enum class AppFeature {
     DAILY_TASKS,
@@ -47,7 +53,21 @@ enum class FeatureLoadStatus {
 }
 
 class GuiderApplication : Application(), Configuration.Provider {
+    private val regionalSettingsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            LocalizedFormatters.refreshConfiguration()
+        }
+    }
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val database by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        GuiderDatabase.create(this)
+    }
+    private val initializedDatabase by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        applicationScope.async(start = CoroutineStart.LAZY) {
+            LegacyPreferencesImporter(this@GuiderApplication).importIfNeeded(database)
+            database
+        }.also { it.start() }
+    }
     private val featureJobs = mutableMapOf<AppFeature, Job>()
     private val mutableFeatureStatuses = MutableStateFlow(
         AppFeature.entries.associateWith { FeatureLoadStatus.NOT_REQUESTED },
@@ -88,7 +108,22 @@ class GuiderApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        LocalizedFormatters.refreshConfiguration()
+        ContextCompat.registerReceiver(
+            this,
+            regionalSettingsReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_LOCALE_CHANGED)
+                addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         requestFeature(AppFeature.DAILY_TASKS)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        LocalizedFormatters.refreshConfiguration()
     }
 
     override val workManagerConfiguration: Configuration
@@ -143,7 +178,7 @@ class GuiderApplication : Application(), Configuration.Provider {
 
     fun runWhenFeatureReady(
         feature: AppFeature,
-        block: GuiderApplication.() -> Unit,
+        block: suspend GuiderApplication.() -> Unit,
     ): Job = applicationScope.launch {
         awaitFeature(feature)
         block()
@@ -160,14 +195,15 @@ class GuiderApplication : Application(), Configuration.Provider {
     }
 
     private suspend fun loadDailyTasks() {
-        dailyTaskRepository = withContext(Dispatchers.IO) {
-            SharedPreferencesDailyTaskRepository(this@GuiderApplication, applicationScope)
-        }
+        dailyTaskRepository = RoomDailyTaskRepository.create(
+            dao = initializedDatabase.await().dailyTaskDao(),
+            scope = applicationScope,
+        )
     }
 
     private suspend fun loadSleep() = coroutineScope {
-        val sleep = async(Dispatchers.IO) {
-            SharedPreferencesSleepRepository(this@GuiderApplication, applicationScope)
+        val sleep = async {
+            RoomSleepRepository.create(initializedDatabase.await(), applicationScope)
         }
         val notificationManager = async(Dispatchers.IO) {
             HibernationNotificationManager(this@GuiderApplication).also { manager ->
@@ -188,32 +224,19 @@ class GuiderApplication : Application(), Configuration.Provider {
     }
 
     private suspend fun loadHabits() {
-        habitRepository = withContext(Dispatchers.IO) {
-            SharedPreferencesHabitRepository(this@GuiderApplication, applicationScope)
-        }
+        habitRepository = RoomHabitRepository.create(initializedDatabase.await(), applicationScope)
     }
 
     private suspend fun loadGoals() {
         awaitFeature(AppFeature.DAILY_TASKS)
         awaitFeature(AppFeature.HABITS)
-        val repository = withContext(Dispatchers.IO) {
-            SharedPreferencesGoalRepository(this@GuiderApplication, applicationScope)
-        }
-        repository.goals.value
-            .filter { it.type == GoalType.PERIODIC }
-            .forEach { goal ->
-                val startDayKey = goal.startDayKey ?: goal.createdDayKey
-                val endDayKey = goal.endDayKey ?: startDayKey
-                habitRepository.setGoalPeriod(goal.id, startDayKey, endDayKey)
-            }
+        val repository = RoomGoalRepository.create(initializedDatabase.await(), applicationScope)
         goalRepository = repository
         mutableGoalRepository.value = repository
     }
 
     private suspend fun loadMoney() {
-        moneyRepository = withContext(Dispatchers.IO) {
-            SharedPreferencesMoneyRepository(this@GuiderApplication, applicationScope)
-        }
+        moneyRepository = RoomMoneyRepository.create(initializedDatabase.await(), applicationScope)
     }
 
     private fun updateFeatureStatus(feature: AppFeature, status: FeatureLoadStatus) {
