@@ -59,7 +59,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 enum class GuiderDestination(
     val label: String,
@@ -167,7 +166,9 @@ fun GuiderApp(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { page -> destinations[page] },
-            beyondViewportPageCount = 0,
+            // Keep only the adjacent destination composed so tap-driven navigation does not
+            // have to build the entire next screen inside the 280 ms pager animation.
+            beyondViewportPageCount = 1,
         ) { page ->
             val destination = destinations[page]
             if (destination == GuiderDestination.DAILY_TASKS) {
@@ -207,7 +208,7 @@ fun GuiderApp(
 }
 
 internal fun shouldAnimatePageChange(currentPage: Int, targetPage: Int): Boolean =
-    abs(targetPage - currentPage) == 1
+    currentPage != targetPage
 
 @Composable
 private fun DailyTasksDestinationContent(

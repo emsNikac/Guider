@@ -6,15 +6,11 @@ import org.junit.Test
 
 class GuiderNavigationTest {
     @Test
-    fun adjacentPageChangeAnimates() {
+    fun differentPageChangeAnimates() {
         assertTrue(shouldAnimatePageChange(currentPage = 1, targetPage = 2))
         assertTrue(shouldAnimatePageChange(currentPage = 2, targetPage = 1))
-    }
-
-    @Test
-    fun longPageChangeSnaps() {
-        assertFalse(shouldAnimatePageChange(currentPage = 0, targetPage = 2))
-        assertFalse(shouldAnimatePageChange(currentPage = 4, targetPage = 0))
+        assertTrue(shouldAnimatePageChange(currentPage = 0, targetPage = 2))
+        assertTrue(shouldAnimatePageChange(currentPage = 4, targetPage = 0))
     }
 
     @Test
