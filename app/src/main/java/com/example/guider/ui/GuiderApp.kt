@@ -51,9 +51,9 @@ import com.example.guider.ui.screens.goals.GoalsRoute
 import com.example.guider.ui.screens.habits.HabitsRoute
 import com.example.guider.ui.screens.money.MoneyRoute
 import com.example.guider.ui.screens.sleep.SleepCalculatorRoute
-import com.example.guider.ui.util.ImmutableListSnapshot
-import com.example.guider.ui.util.ImmutableMapSnapshot
-import com.example.guider.ui.util.toImmutableSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
+import com.example.guider.domain.collections.ImmutableMapSnapshot
+import com.example.guider.domain.collections.toImmutableSnapshot
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -218,7 +218,7 @@ private fun DailyTasksDestinationContent(
     onCategorySelected: (TaskCategory) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
 ) {
-    val modifier = destinationModifier(contentPadding)
+    val modifier = Modifier.destinationModifier(contentPadding)
     DailyTasksScreen(
         tasks = tasks,
         selectedCategory = selectedCategory,
@@ -235,7 +235,7 @@ private fun FeatureDestinationContent(
     isVisible: Boolean,
     contentPadding: PaddingValues,
 ) {
-    val modifier = destinationModifier(contentPadding)
+    val modifier = Modifier.destinationModifier(contentPadding)
 
     when (destination) {
         GuiderDestination.DAILY_TASKS -> error("Daily Tasks has its own destination content")
@@ -278,7 +278,7 @@ private fun FeatureDestinationContent(
 }
 
 @Composable
-private fun destinationModifier(contentPadding: PaddingValues): Modifier {
+private fun Modifier.destinationModifier(contentPadding: PaddingValues): Modifier {
     val layoutDirection = LocalLayoutDirection.current
     val appliedPadding = PaddingValues(
         start = contentPadding.calculateStartPadding(layoutDirection),
@@ -286,7 +286,7 @@ private fun destinationModifier(contentPadding: PaddingValues): Modifier {
         end = contentPadding.calculateEndPadding(layoutDirection),
         bottom = 0.dp,
     )
-    return Modifier
+    return this
         .padding(appliedPadding)
         .consumeWindowInsets(appliedPadding)
 }

@@ -53,8 +53,9 @@ import com.example.guider.domain.goals.Goal
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.ui.theme.taskCategoryPalette
-import com.example.guider.ui.util.ImmutableListSnapshot
-import com.example.guider.ui.util.ImmutableMapSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
+import com.example.guider.domain.collections.ImmutableMapSnapshot
+import com.example.guider.domain.collections.toImmutableSnapshot
 import com.example.guider.util.LocalizedFormatters
 import java.util.Locale
 
@@ -64,8 +65,8 @@ fun DailyTasksScreen(
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
-    goalTitlesById: ImmutableMapSnapshot<Long, String> = ImmutableMapSnapshot(emptyMap()),
     modifier: Modifier = Modifier,
+    goalTitlesById: ImmutableMapSnapshot<Long, String> = ImmutableMapSnapshot(emptyMap()),
 ) {
     val filteredTasks = remember(tasks, selectedCategory) {
         selectedCategory?.let { category ->
@@ -77,7 +78,10 @@ fun DailyTasksScreen(
         filteredTasks.count { it.isFinished }
     }
     val taskCountsByCategory = remember(tasks) {
-        tasks.groupingBy(DailyTask::taskCategory).eachCount()
+        tasks.groupingBy(DailyTask::taskCategory).eachCount().toImmutableSnapshot()
+    }
+    val completionSummary = remember(filteredCompleteCount, filteredTasks.size) {
+        "$filteredCompleteCount of ${filteredTasks.size} complete"
     }
     val taskListState = rememberLazyListState()
     val dateLabel = remember {
@@ -111,7 +115,7 @@ fun DailyTasksScreen(
         )
         SectionTitle(
             title = selectedCategory?.displayName ?: "Today's list",
-            supportingText = "$filteredCompleteCount of ${filteredTasks.size} complete",
+            supportingText = completionSummary,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
         )
 
@@ -187,7 +191,7 @@ private fun CompactProgressRow(
     totalCount: Int,
 ) {
     val progress = if (totalCount == 0) 0f else completeCount.toFloat() / totalCount
-    val animatedProgress by animateFloatAsState(
+    val animatedProgress = animateFloatAsState(
         targetValue = progress,
         animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
         label = "Today's task progress",
@@ -218,7 +222,7 @@ private fun CompactProgressRow(
                 )
             }
             LinearProgressIndicator(
-                progress = { animatedProgress },
+                progress = { animatedProgress.value },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(5.dp)
@@ -234,7 +238,7 @@ private fun CompactProgressRow(
 
 @Composable
 private fun CategorySection(
-    taskCountsByCategory: Map<TaskCategory, Int>,
+    taskCountsByCategory: ImmutableMapSnapshot<TaskCategory, Int>,
     selectedCategory: TaskCategory?,
     onCategorySelected: (TaskCategory) -> Unit,
 ) {
@@ -319,6 +323,10 @@ private fun DailyTaskCard(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val bodyLarge = MaterialTheme.typography.bodyLarge
+    val titleStyle = remember(bodyLarge) {
+        bodyLarge.copy(fontWeight = FontWeight.Medium)
+    }
     ElevatedCard(
         onClick = { onCheckedChange(!task.isFinished) },
         modifier = modifier.fillMaxWidth(),
@@ -348,7 +356,7 @@ private fun DailyTaskCard(
             ) {
                 Text(
                     text = task.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                    style = titleStyle,
                     color = if (task.isFinished) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
@@ -530,7 +538,7 @@ fun AddTaskDialog(
 
 @Composable
 private fun GoalLinkSelector(
-    goals: List<Goal>,
+    goals: ImmutableListSnapshot<Goal>,
     selectedGoalId: Long?,
     onSelected: (Long?) -> Unit,
 ) {

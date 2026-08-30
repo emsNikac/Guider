@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,16 +58,16 @@ import com.example.guider.domain.sleep.SleepCycleSuggestion
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillItem
 import com.example.guider.ui.components.navigationPillScrollEffect
-import com.example.guider.ui.util.ImmutableListSnapshot
-import com.example.guider.ui.util.toImmutableSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
+import com.example.guider.domain.collections.toImmutableSnapshot
 import com.example.guider.util.LocalizedFormatters
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
 @Composable
 fun SleepCalculatorRoute(
-    isVisible: Boolean = true,
     modifier: Modifier = Modifier,
+    isVisible: Boolean = true,
     viewModel: SleepViewModel = viewModel(),
 ) {
     val activeSession by viewModel.activeSession.collectAsStateWithLifecycle()
@@ -254,6 +255,10 @@ private fun ReferenceTimeCard(
     onChooseTime: () -> Unit,
     onUseDeviceTime: () -> Unit,
 ) {
+    val configuration = LocalConfiguration.current
+    val formattedTime = remember(referenceTimeEpochMillis, configuration) {
+        formatTime(referenceTimeEpochMillis)
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -270,7 +275,7 @@ private fun ReferenceTimeCard(
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Text(
-                    text = formatTime(referenceTimeEpochMillis),
+                    text = formattedTime,
                     style = MaterialTheme.typography.headlineMedium,
                 )
                 Text(
@@ -297,6 +302,10 @@ private fun SmallCycleTile(
     suggestion: SleepCycleSuggestion,
     modifier: Modifier = Modifier,
 ) {
+    val configuration = LocalConfiguration.current
+    val formattedTime = remember(suggestion.wakeAtEpochMillis, configuration) {
+        formatTime(suggestion.wakeAtEpochMillis)
+    }
     Surface(
         modifier = modifier.height(82.dp),
         shape = RoundedCornerShape(16.dp),
@@ -307,7 +316,7 @@ private fun SmallCycleTile(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = formatTime(suggestion.wakeAtEpochMillis),
+                text = formattedTime,
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
@@ -324,7 +333,12 @@ private fun RecommendedCycleTile(
     suggestion: SleepCycleSuggestion,
     modifier: Modifier = Modifier,
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val configuration = LocalConfiguration.current
+    val formattedTime = remember(suggestion.wakeAtEpochMillis, configuration) {
+        formatTime(suggestion.wakeAtEpochMillis)
+    }
+    val background = MaterialTheme.colorScheme.background
+    val isDark = remember(background) { background.luminance() < 0.5f }
     val containerColor = if (suggestion.cycleCount == 5) {
         MaterialTheme.colorScheme.primaryContainer
     } else if (isDark) {
@@ -339,13 +353,19 @@ private fun RecommendedCycleTile(
     } else {
         Color(0xFF234E58)
     }
+    val border = remember(contentColor) {
+        BorderStroke(1.dp, contentColor.copy(alpha = 0.18f))
+    }
+    val cycleLabel = remember(suggestion.cycleCount) {
+        "${suggestion.cycleCount} cycles • ${formatCycleDuration(suggestion.cycleCount)}"
+    }
 
     Surface(
         modifier = modifier.height(118.dp),
         shape = RoundedCornerShape(20.dp),
         color = containerColor,
         contentColor = contentColor,
-        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.18f)),
+        border = border,
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -363,12 +383,12 @@ private fun RecommendedCycleTile(
                 )
             }
             Text(
-                text = formatTime(suggestion.wakeAtEpochMillis),
+                text = formattedTime,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "${suggestion.cycleCount} cycles • ${formatCycleDuration(suggestion.cycleCount)}",
+                text = cycleLabel,
                 style = MaterialTheme.typography.labelMedium,
             )
         }
@@ -383,6 +403,15 @@ private fun HibernationCard(
     onFinish: () -> Unit,
 ) {
     val active = activeSession != null
+    val configuration = LocalConfiguration.current
+    val statusText = remember(activeSession, configuration) {
+        if (activeSession != null) {
+            "Sleep time started at ${formatTime(activeSession.sleepStartsAtEpochMillis)}. " +
+                "We’ll check in after five cycles; you can also stop sooner below."
+        } else {
+            "Tracking begins 15 minutes after activation. Your timestamps are saved even if the app closes."
+        }
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -406,12 +435,7 @@ private fun HibernationCard(
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
-                text = if (activeSession != null) {
-                    "Sleep time started at ${formatTime(activeSession.sleepStartsAtEpochMillis)}. " +
-                        "We’ll check in after five cycles; you can also stop sooner below."
-                } else {
-                    "Tracking begins 15 minutes after activation. Your timestamps are saved even if the app closes."
-                },
+                text = statusText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (active) {
                     MaterialTheme.colorScheme.onTertiaryContainer

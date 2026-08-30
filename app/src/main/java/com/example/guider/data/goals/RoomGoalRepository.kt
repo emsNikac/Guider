@@ -14,8 +14,10 @@ import com.example.guider.domain.goals.GoalRepository
 import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.time.DayKeys
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 class RoomGoalRepository private constructor(
@@ -93,6 +95,7 @@ class RoomGoalRepository private constructor(
             database.goalDao().removeCompletedBefore(DayKeys.today())
             val goals = database.goalDao().observeAll()
                 .map { entities -> entities.map(GoalEntity::toModel) }
+                .flowOn(Dispatchers.Default)
                 .distinctUntilChanged()
                 .stateInWhileSubscribed(scope)
             return RoomGoalRepository(

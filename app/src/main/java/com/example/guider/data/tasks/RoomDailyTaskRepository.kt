@@ -8,8 +8,10 @@ import com.example.guider.domain.tasks.DailyTaskRepository
 import com.example.guider.models.DailyTask
 import com.example.guider.models.TaskCategory
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 class RoomDailyTaskRepository private constructor(
@@ -49,6 +51,7 @@ class RoomDailyTaskRepository private constructor(
             dao.removeCompletedBefore(com.example.guider.domain.time.DayKeys.today())
             val tasks = dao.observeAll()
                 .map { entities -> entities.map(DailyTaskEntity::toModel) }
+                .flowOn(Dispatchers.Default)
                 .distinctUntilChanged()
                 .stateInWhileSubscribed(scope)
             return RoomDailyTaskRepository(

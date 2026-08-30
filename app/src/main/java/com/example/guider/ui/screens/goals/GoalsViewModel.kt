@@ -14,9 +14,9 @@ import com.example.guider.domain.goals.isActive
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.time.DayKeys
 import com.example.guider.models.TaskCategory
-import com.example.guider.ui.util.ImmutableListSnapshot
-import com.example.guider.ui.util.ImmutableMapSnapshot
-import com.example.guider.ui.util.toImmutableSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
+import com.example.guider.domain.collections.ImmutableMapSnapshot
+import com.example.guider.domain.collections.toImmutableSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine

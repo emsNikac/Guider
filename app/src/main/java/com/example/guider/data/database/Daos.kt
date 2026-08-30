@@ -134,25 +134,7 @@ interface HabitDao {
         JOIN habits h ON h.id = c.habitId
         JOIN habit_weekdays w
           ON w.habitId = c.habitId
-         AND w.weekday = CASE CAST(
-             strftime(
-                 '%w',
-                 printf(
-                     '%04d-%02d-%02d',
-                     c.dayKey / 10000,
-                     (c.dayKey / 100) % 100,
-                     c.dayKey % 100
-                 )
-             ) AS INTEGER
-         )
-             WHEN 0 THEN 'SUNDAY'
-             WHEN 1 THEN 'MONDAY'
-             WHEN 2 THEN 'TUESDAY'
-             WHEN 3 THEN 'WEDNESDAY'
-             WHEN 4 THEN 'THURSDAY'
-             WHEN 5 THEN 'FRIDAY'
-             WHEN 6 THEN 'SATURDAY'
-         END
+         AND w.weekday = c.weekday
         WHERE h.linkedGoalId IS NOT NULL
           AND (h.activeStartDayKey IS NULL OR c.dayKey >= h.activeStartDayKey)
           AND (h.activeEndDayKey IS NULL OR c.dayKey <= h.activeEndDayKey)
@@ -197,8 +179,17 @@ interface SleepDao {
     @Query("DELETE FROM active_sleep_session")
     suspend fun clearActiveSession()
 
-    @Query("SELECT * FROM sleep_records ORDER BY endedAtEpochMillis, id")
-    fun observeHistory(): Flow<List<SleepRecordEntity>>
+    @Query(
+        """
+        SELECT * FROM (
+            SELECT * FROM sleep_records
+            ORDER BY endedAtEpochMillis DESC, id DESC
+            LIMIT :limit
+        )
+        ORDER BY endedAtEpochMillis, id
+        """,
+    )
+    fun observeHistory(limit: Int): Flow<List<SleepRecordEntity>>
 
     @Insert
     suspend fun insertRecord(record: SleepRecordEntity): Long
@@ -221,24 +212,18 @@ interface SleepDao {
 interface MoneyDao {
     @Query(
         """
-        SELECT * FROM spendings
-        WHERE ledgerId = 1
-        ORDER BY createdAtEpochMillis DESC, id ASC
-        """,
-    )
-    fun observeSpendings(): Flow<List<SpendingEntity>>
-
-    @Query(
-        """
         SELECT state.periodStartDayKey AS periodStartDayKey,
-               COALESCE(SUM(spending.amountMinor), 0) AS totalMinor
+               spending.id AS spendingId,
+               spending.title AS spendingTitle,
+               spending.amountMinor AS spendingAmountMinor,
+               spending.createdAtEpochMillis AS spendingCreatedAtEpochMillis
         FROM money_state state
         LEFT JOIN spendings spending ON spending.ledgerId = state.id
         WHERE state.id = 1
-        GROUP BY state.id, state.periodStartDayKey
+        ORDER BY spending.createdAtEpochMillis DESC, spending.id ASC
         """,
     )
-    fun observeLedgerSummary(): Flow<MoneyLedgerSummary?>
+    fun observeLedger(): Flow<List<MoneyLedgerRow>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setState(state: MoneyStateEntity)

@@ -3,6 +3,8 @@ package com.example.guider.ui.screens.habits
 import androidx.compose.runtime.Immutable
 import com.example.guider.domain.habits.HabitTrackerRange
 import com.example.guider.domain.habits.HabitWeekday
+import com.example.guider.domain.collections.ImmutableListSnapshot
+import com.example.guider.domain.collections.toImmutableSnapshot
 import com.example.guider.util.LocalizedFormatters
 import java.util.Calendar
 
@@ -22,7 +24,7 @@ internal data class HabitPeriod(
     val range: HabitTrackerRange,
     val offset: Int,
     val title: String,
-    val days: List<HabitDay>,
+    val days: ImmutableListSnapshot<HabitDay>,
 ) {
     val startDayKey: Int
         get() = days.first().key
@@ -93,7 +95,7 @@ internal object HabitCalendar {
         count: Int,
         today: Calendar,
         includeLabels: Boolean,
-    ): List<HabitDay> {
+    ): ImmutableListSnapshot<HabitDay> {
         val todayKey = dayKey(today)
         return buildList(count) {
             val cursor = start.clone() as Calendar
@@ -122,7 +124,7 @@ internal object HabitCalendar {
                 )
                 cursor.add(Calendar.DAY_OF_YEAR, 1)
             }
-        }
+        }.toImmutableSnapshot()
     }
 
     private fun dayCalendar(epochMillis: Long): Calendar = Calendar.getInstance().apply {

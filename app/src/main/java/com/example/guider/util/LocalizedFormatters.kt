@@ -15,14 +15,14 @@ object LocalizedFormatters {
         val locale: Locale,
         val timeZone: TimeZone,
     ) {
-        val reusableDate: ThreadLocal<Date> = ThreadLocal.withInitial(::Date)
+        val reusableDate: ThreadLocal<Date> = threadLocal(::Date)
         val dateFormatters = ConcurrentHashMap<String, ThreadLocal<DateFormat>>()
-        val shortTimeFormatter: ThreadLocal<DateFormat> = ThreadLocal.withInitial {
+        val shortTimeFormatter: ThreadLocal<DateFormat> = threadLocal {
             DateFormat.getTimeInstance(DateFormat.SHORT, locale).apply {
                 timeZone = this@FormatterCache.timeZone
             }
         }
-        val currencyFormatter: ThreadLocal<NumberFormat> = ThreadLocal.withInitial {
+        val currencyFormatter: ThreadLocal<NumberFormat> = threadLocal {
             NumberFormat.getCurrencyInstance(locale).apply {
                 minimumFractionDigits = 2
                 maximumFractionDigits = 2
@@ -51,7 +51,7 @@ object LocalizedFormatters {
     fun formatDate(pattern: String, epochMillis: Long): String {
         val current = currentCache()
         val formatter = checkNotNull(current.dateFormatters.computeIfAbsent(pattern) {
-            ThreadLocal.withInitial {
+            threadLocal {
                 SimpleDateFormat(pattern, current.locale).apply {
                     timeZone = current.timeZone
                 }
@@ -80,4 +80,9 @@ object LocalizedFormatters {
         locale = Locale.getDefault(),
         timeZone = TimeZone.getDefault(),
     )
+
+    private fun <T> threadLocal(initializer: () -> T): ThreadLocal<T> =
+        object : ThreadLocal<T>() {
+            override fun initialValue(): T = initializer()
+        }
 }

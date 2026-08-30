@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -76,7 +77,7 @@ import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
 import com.example.guider.util.LocalizedFormatters
 import com.example.guider.ui.screens.AddTaskDialog
-import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
 import com.example.guider.R
 
 @Composable
@@ -204,8 +205,9 @@ private fun GoalsScreen(
     }
 
     taskGoal?.let { goal ->
+        val availableGoals = remember(goal) { ImmutableListSnapshot(listOf(goal)) }
         AddTaskDialog(
-            availableGoals = ImmutableListSnapshot(listOf(goal)),
+            availableGoals = availableGoals,
             initialLinkedGoalId = goal.id,
             goalSelectionEnabled = false,
             onDismiss = { taskGoal = null },
@@ -305,6 +307,10 @@ private fun OneTimeGoalCard(
     onDelete: () -> Unit,
 ) {
     val achieved = goal.achievedDayKey != null
+    val bodyLarge = MaterialTheme.typography.bodyLarge
+    val titleStyle = remember(bodyLarge) {
+        bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+    }
     ElevatedCard(
         onClick = onToggle,
         modifier = Modifier.fillMaxWidth(),
@@ -335,7 +341,7 @@ private fun OneTimeGoalCard(
             ) {
                 Text(
                     text = goal.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    style = titleStyle,
                     color = if (achieved) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
@@ -380,11 +386,18 @@ private fun PeriodicGoalCard(
     val todayDayKey = remember { DayKeys.today() }
     val isActive = remember(goal, todayDayKey) { goal.isActive(todayDayKey) }
     val periodLabel = remember(goal, todayDayKey) { goalPeriodLabel(goal, todayDayKey) }
-    val animatedProgress by animateFloatAsState(
+    val animatedProgress = animateFloatAsState(
         targetValue = progress.fraction,
         animationSpec = tween(450, easing = FastOutSlowInEasing),
         label = "${goal.title} consistency",
     )
+    val progressSummary = remember(progress.completedCheckIns, progress.expectedCheckIns) {
+        if (progress.expectedCheckIns == 0) {
+            "No scheduled check-ins in this period"
+        } else {
+            "${progress.completedCheckIns} of ${progress.expectedCheckIns} total check-ins"
+        }
+    }
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -408,11 +421,7 @@ private fun PeriodicGoalCard(
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
-                        text = if (progress.expectedCheckIns == 0) {
-                            "No scheduled check-ins in this period"
-                        } else {
-                            "${progress.completedCheckIns} of ${progress.expectedCheckIns} total check-ins"
-                        },
+                        text = progressSummary,
                         modifier = Modifier.padding(top = 2.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -439,7 +448,7 @@ private fun PeriodicGoalCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 LinearProgressIndicator(
-                    progress = { animatedProgress },
+                    progress = { animatedProgress.value },
                     modifier = Modifier
                         .weight(1f)
                         .height(7.dp)
@@ -618,11 +627,14 @@ private fun AddGoalDialog(
     }
     val habitDrafts = remember { mutableStateListOf(HabitDraft(key = 0)) }
     var nextDraftKey by remember { mutableIntStateOf(1) }
-    val valid = title.isNotBlank() && (
-        type == GoalType.ONE_TIME || habitDrafts.all {
-            it.name.isNotBlank() && it.weekdays.isNotEmpty()
+    val habitsValid by remember {
+        derivedStateOf {
+            habitDrafts.all {
+                it.name.isNotBlank() && it.weekdays.isNotEmpty()
+            }
         }
-    )
+    }
+    val valid = title.isNotBlank() && (type == GoalType.ONE_TIME || habitsValid)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(

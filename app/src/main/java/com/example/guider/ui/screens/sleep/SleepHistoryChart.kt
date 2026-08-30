@@ -33,8 +33,8 @@ import com.example.guider.domain.sleep.SleepHistoryRange
 import com.example.guider.domain.sleep.SleepRecord
 import com.example.guider.domain.time.DayKeys
 import com.example.guider.util.LocalizedFormatters
-import com.example.guider.ui.util.ImmutableListSnapshot
-import com.example.guider.ui.util.toImmutableSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
+import com.example.guider.domain.collections.toImmutableSnapshot
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -65,6 +65,9 @@ fun SleepHistoryCard(
         }
         if (count == 0) null else total / count
     }
+    val averageLabel = remember(average) {
+        average?.let { "${formatHours(it)} average" } ?: "No completed sleep yet"
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -85,7 +88,7 @@ fun SleepHistoryCard(
                         style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
-                        text = average?.let { "${formatHours(it)} average" } ?: "No completed sleep yet",
+                        text = averageLabel,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

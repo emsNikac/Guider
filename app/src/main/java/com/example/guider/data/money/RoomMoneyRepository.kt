@@ -3,17 +3,19 @@ package com.example.guider.data.money
 import androidx.room.withTransaction
 import com.example.guider.data.database.GuiderDatabase
 import com.example.guider.data.database.MoneyStateEntity
+import com.example.guider.data.database.MoneyLedgerRow
 import com.example.guider.data.database.SpendingEntity
 import com.example.guider.data.database.toModel
 import com.example.guider.data.stateInWhileSubscribed
 import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.MoneyRepository
 import com.example.guider.domain.money.Spending
+import com.example.guider.domain.collections.toImmutableSnapshot
 import com.example.guider.domain.time.DayKeys
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 class RoomMoneyRepository private constructor(
     private val database: GuiderDatabase,
@@ -57,16 +59,8 @@ class RoomMoneyRepository private constructor(
     companion object {
         suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomMoneyRepository {
             val dao = database.moneyDao()
-            val ledger = combine(
-                dao.observeSpendings(),
-                dao.observeLedgerSummary(),
-            ) { spendingEntities, summary ->
-                MoneyLedger(
-                    spendings = spendingEntities.map { it.toModel() },
-                    periodStartDayKey = summary?.periodStartDayKey,
-                    totalMinor = summary?.totalMinor ?: 0L,
-                )
-            }
+            val ledger = dao.observeLedger()
+                .map { rows -> rows.toMoneyLedger() }
                 .distinctUntilChanged()
                 .stateInWhileSubscribed(scope)
             return RoomMoneyRepository(
@@ -75,4 +69,23 @@ class RoomMoneyRepository private constructor(
             )
         }
     }
+}
+
+internal fun List<MoneyLedgerRow>.toMoneyLedger(): MoneyLedger {
+    val spendings = mapNotNull(MoneyLedgerRow::toSpending)
+    return MoneyLedger(
+        spendings = spendings.toImmutableSnapshot(),
+        periodStartDayKey = firstOrNull()?.periodStartDayKey,
+        totalMinor = spendings.sumOf(Spending::amountMinor),
+    )
+}
+
+private fun MoneyLedgerRow.toSpending(): Spending? {
+    val id = spendingId ?: return null
+    return Spending(
+        id = id,
+        title = spendingTitle ?: return null,
+        amountMinor = spendingAmountMinor ?: return null,
+        createdAtEpochMillis = spendingCreatedAtEpochMillis ?: return null,
+    )
 }

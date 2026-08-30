@@ -89,11 +89,15 @@ data class HabitWeekdayEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("dayKey")],
+    indices = [
+        Index("dayKey"),
+        Index(value = ["habitId", "weekday"]),
+    ],
 )
 data class HabitCompletionEntity(
     val habitId: Long,
     val dayKey: Int,
+    val weekday: String,
 )
 
 data class HabitRecord(
@@ -166,9 +170,12 @@ data class SpendingEntity(
     val createdAtEpochMillis: Long,
 )
 
-data class MoneyLedgerSummary(
+data class MoneyLedgerRow(
     val periodStartDayKey: Int?,
-    val totalMinor: Long,
+    val spendingId: Long?,
+    val spendingTitle: String?,
+    val spendingAmountMinor: Long?,
+    val spendingCreatedAtEpochMillis: Long?,
 )
 
 @Entity(tableName = "app_metadata")

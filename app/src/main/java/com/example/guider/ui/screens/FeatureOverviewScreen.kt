@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillItem
 import com.example.guider.ui.components.navigationPillScrollEffect
-import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
 
 @Composable
 fun FeatureOverviewScreen(

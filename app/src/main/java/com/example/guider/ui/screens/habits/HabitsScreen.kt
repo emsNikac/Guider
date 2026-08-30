@@ -7,6 +7,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,7 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,6 +59,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -79,7 +82,9 @@ import com.example.guider.domain.habits.HabitWeekday
 import com.example.guider.domain.habits.isScheduledOn
 import com.example.guider.ui.components.NavigationPillListBottomPadding
 import com.example.guider.ui.components.navigationPillScrollEffect
-import com.example.guider.ui.util.ImmutableListSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
+import com.example.guider.domain.collections.ImmutableMapSnapshot
+import com.example.guider.domain.collections.toImmutableSnapshot
 
 @Composable
 fun HabitsRoute(
@@ -108,7 +113,7 @@ fun HabitsRoute(
 @Composable
 private fun HabitsScreen(
     habits: ImmutableListSnapshot<Habit>,
-    streaksByHabitId: Map<Long, Int>,
+    streaksByHabitId: ImmutableMapSnapshot<Long, Int>,
     range: HabitTrackerRange,
     periodOffset: Int,
     period: HabitPeriod,
@@ -124,6 +129,13 @@ private fun HabitsScreen(
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showDeletionPicker by rememberSaveable { mutableStateOf(false) }
     var habitPendingDeletion by remember { mutableStateOf<Habit?>(null) }
+    val background = MaterialTheme.colorScheme.background
+    val darkTheme = remember(background) { background.luminance() < 0.5f }
+    val colorsByHabitId = remember(habits, darkTheme) {
+        habits.associate { habit -> habit.id to habitColor(habit.colorHue, darkTheme) }
+            .toImmutableSnapshot()
+    }
+    val dayScrollState = rememberScrollState()
 
     LazyColumn(
         modifier = modifier
@@ -135,67 +147,106 @@ private fun HabitsScreen(
             end = 24.dp,
             bottom = NavigationPillListBottomPadding,
         ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.Top,
     ) {
         item(key = HABITS_HEADER_KEY) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Habits",
-                        style = MaterialTheme.typography.headlineLarge,
-                    )
-                    Text(
-                        text = "Small actions, repeated with intention.",
-                        modifier = Modifier.padding(top = 3.dp),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                OutlinedButton(onClick = { showAddDialog = true }) {
-                    Text("Add habit")
+            SpacedListItem {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Habits",
+                            style = MaterialTheme.typography.headlineLarge,
+                        )
+                        Text(
+                            text = "Small actions, repeated with intention.",
+                            modifier = Modifier.padding(top = 3.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedButton(onClick = { showAddDialog = true }) {
+                        Text("Add habit")
+                    }
                 }
             }
         }
 
         item(key = HABITS_CONTROLS_KEY) {
-            TrackerControls(
-                range = range,
-                periodTitle = period.title,
-                periodOffset = periodOffset,
-                onRangeSelected = onRangeSelected,
-                onPrevious = onPreviousPeriod,
-                onNext = onNextPeriod,
-                onToday = onCurrentPeriod,
-            )
+            SpacedListItem {
+                TrackerControls(
+                    range = range,
+                    periodTitle = period.title,
+                    periodOffset = periodOffset,
+                    onRangeSelected = onRangeSelected,
+                    onPrevious = onPreviousPeriod,
+                    onNext = onNextPeriod,
+                    onToday = onCurrentPeriod,
+                )
+            }
         }
 
-        item(key = HABITS_MATRIX_KEY) {
-            HabitMatrix(
-                habits = habits,
-                days = period.days,
-                range = range,
-                onToggleCompletion = onToggleCompletion,
-            )
+        if (range == HabitTrackerRange.WEEK && habits.isNotEmpty()) {
+            item(
+                key = HABITS_MATRIX_HEADER_KEY,
+                contentType = HABIT_MATRIX_HEADER_CONTENT_TYPE,
+            ) {
+                WeeklyHabitMatrixHeader(
+                    days = period.days,
+                    dayScrollState = dayScrollState,
+                )
+            }
+            itemsIndexed(
+                items = habits,
+                key = { _, habit -> "habit_matrix_${habit.id}" },
+                contentType = { _, _ -> HABIT_MATRIX_ROW_CONTENT_TYPE },
+            ) { index, habit ->
+                val isLast = index == habits.lastIndex
+                WeeklyHabitMatrixRow(
+                    habit = habit,
+                    color = colorsByHabitId.getValue(habit.id),
+                    days = period.days,
+                    dayScrollState = dayScrollState,
+                    isLast = isLast,
+                    onToggleCompletion = onToggleCompletion,
+                )
+                if (isLast) Spacer(Modifier.height(ListItemSpacing))
+            }
+        } else {
+            item(key = HABITS_MATRIX_KEY) {
+                SpacedListItem {
+                    StaticHabitMatrix(
+                        habits = habits,
+                        days = period.days,
+                        range = range,
+                        colorsByHabitId = colorsByHabitId,
+                    )
+                }
+            }
         }
 
         item(key = HABITS_STREAKS_HEADER_KEY) {
-            HabitStreaksHeader(
-                hasHabits = habits.isNotEmpty(),
-                onDeleteMenuRequested = { showDeletionPicker = true },
-            )
+            SpacedListItem(spacingAfter = habits.isNotEmpty()) {
+                HabitStreaksHeader(
+                    hasHabits = habits.isNotEmpty(),
+                    onDeleteMenuRequested = { showDeletionPicker = true },
+                )
+            }
         }
-        items(
+        itemsIndexed(
             items = habits,
-            key = { habit -> "habit_streak_${habit.id}" },
-            contentType = { HABIT_STREAK_CONTENT_TYPE },
-        ) { habit ->
-            HabitStreakCard(
-                habit = habit,
-                streak = streaksByHabitId[habit.id] ?: 0,
-            )
+            key = { _, habit -> "habit_streak_${habit.id}" },
+            contentType = { _, _ -> HABIT_STREAK_CONTENT_TYPE },
+        ) { index, habit ->
+            SpacedListItem(spacingAfter = index < habits.lastIndex) {
+                HabitStreakCard(
+                    habit = habit,
+                    color = colorsByHabitId.getValue(habit.id),
+                    streak = streaksByHabitId[habit.id] ?: 0,
+                )
+            }
         }
     }
 
@@ -212,6 +263,7 @@ private fun HabitsScreen(
     if (showDeletionPicker) {
         HabitDeletionPickerDialog(
             habits = habits,
+            colorsByHabitId = colorsByHabitId,
             onDismiss = { showDeletionPicker = false },
             onHabitSelected = { habit ->
                 showDeletionPicker = false
@@ -324,15 +376,23 @@ private fun HabitRangeSelector(
 }
 
 @Composable
-private fun HabitMatrix(
-    habits: List<Habit>,
-    days: List<HabitDay>,
-    range: HabitTrackerRange,
-    onToggleCompletion: (Long, Int) -> Unit,
+private fun SpacedListItem(
+    spacingAfter: Boolean = true,
+    content: @Composable () -> Unit,
 ) {
-    val dayScrollState = rememberScrollState()
-    val dayKeys = remember(days) { days.map(HabitDay::key) }
+    Column {
+        content()
+        if (spacingAfter) Spacer(Modifier.height(ListItemSpacing))
+    }
+}
 
+@Composable
+private fun StaticHabitMatrix(
+    habits: ImmutableListSnapshot<Habit>,
+    days: ImmutableListSnapshot<HabitDay>,
+    range: HabitTrackerRange,
+    colorsByHabitId: ImmutableMapSnapshot<Long, Color>,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -360,41 +420,46 @@ private fun HabitMatrix(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            } else if (range == HabitTrackerRange.MONTH) {
+            } else {
                 CompactMonthHabitGrid(
                     habits = habits,
                     days = days,
+                    colorsByHabitId = colorsByHabitId,
                 )
-            } else {
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val habitNameWidth = WeeklyHabitNameColumnWidth
-                    val dayColumnWidth =
-                        ((maxWidth - habitNameWidth) / 7).coerceAtLeast(26.dp)
+            }
+        }
+    }
+}
 
-                    LaunchedEffect(dayKeys) {
-                        dayScrollState.scrollTo(0)
+@Composable
+private fun WeeklyHabitMatrixHeader(
+    days: ImmutableListSnapshot<HabitDay>,
+    dayScrollState: ScrollState,
+) {
+    LaunchedEffect(days.firstOrNull()?.key) {
+        dayScrollState.scrollTo(0)
+    }
+    WeeklyMatrixSegment(first = true, last = false) {
+        Column(modifier = Modifier.padding(top = 10.dp)) {
+            Text(
+                text = "Tap a day to record this week",
+                modifier = Modifier.padding(horizontal = 12.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 7.dp),
+            ) {
+                val dayColumnWidth =
+                    ((maxWidth - WeeklyHabitNameColumnWidth) / 7).coerceAtLeast(26.dp)
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.width(WeeklyHabitNameColumnWidth)) {
+                        MatrixCornerCell()
                     }
-
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.width(habitNameWidth)) {
-                            MatrixCornerCell()
-                            habits.forEach { habit -> HabitNameCell(habit) }
-                        }
-                        Column(modifier = Modifier.horizontalScroll(dayScrollState)) {
-                            DayHeaderRow(
-                                days = days,
-                                dayColumnWidth = dayColumnWidth,
-                            )
-                            habits.forEach { habit ->
-                                HabitCompletionRow(
-                                    habit = habit,
-                                    days = days,
-                                    dayColumnWidth = dayColumnWidth,
-                                    completionSize = WeeklyCompletionSize,
-                                    onToggleCompletion = onToggleCompletion,
-                                )
-                            }
-                        }
+                    Row(modifier = Modifier.horizontalScroll(dayScrollState)) {
+                        DayHeaderRow(days = days, dayColumnWidth = dayColumnWidth)
                     }
                 }
             }
@@ -403,9 +468,102 @@ private fun HabitMatrix(
 }
 
 @Composable
+private fun WeeklyHabitMatrixRow(
+    habit: Habit,
+    color: Color,
+    days: ImmutableListSnapshot<HabitDay>,
+    dayScrollState: ScrollState,
+    isLast: Boolean,
+    onToggleCompletion: (Long, Int) -> Unit,
+) {
+    WeeklyMatrixSegment(first = false, last = isLast) {
+        Column {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val dayColumnWidth =
+                    ((maxWidth - WeeklyHabitNameColumnWidth) / 7).coerceAtLeast(26.dp)
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.width(WeeklyHabitNameColumnWidth)) {
+                        HabitNameCell(habit = habit, color = color)
+                    }
+                    Row(modifier = Modifier.horizontalScroll(dayScrollState)) {
+                        HabitCompletionRow(
+                            habit = habit,
+                            color = color,
+                            days = days,
+                            dayColumnWidth = dayColumnWidth,
+                            completionSize = WeeklyCompletionSize,
+                            onToggleCompletion = onToggleCompletion,
+                        )
+                    }
+                }
+            }
+            if (isLast) Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun WeeklyMatrixSegment(
+    first: Boolean,
+    last: Boolean,
+    content: @Composable () -> Unit,
+) {
+    val shape = RoundedCornerShape(
+        topStart = if (first) MatrixCornerRadius else 0.dp,
+        topEnd = if (first) MatrixCornerRadius else 0.dp,
+        bottomStart = if (last) MatrixCornerRadius else 0.dp,
+        bottomEnd = if (last) MatrixCornerRadius else 0.dp,
+    )
+    val backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(backgroundColor)
+            .drawWithCache {
+                val strokeWidth = 1.dp.toPx()
+                val inset = strokeWidth / 2f
+                val left = inset
+                val top = inset
+                val right = size.width - inset
+                val bottom = size.height - inset
+                val radius = (MatrixCornerRadius.toPx() - inset).coerceAtLeast(0f)
+                val path = Path().apply {
+                    if (first) {
+                        moveTo(left, bottom)
+                        lineTo(left, top + radius)
+                        quadraticTo(left, top, left + radius, top)
+                        lineTo(right - radius, top)
+                        quadraticTo(right, top, right, top + radius)
+                        lineTo(right, bottom)
+                    } else {
+                        moveTo(left, top)
+                        lineTo(left, if (last) bottom - radius else bottom)
+                        moveTo(right, top)
+                        lineTo(right, if (last) bottom - radius else bottom)
+                    }
+                    if (last) {
+                        moveTo(left, bottom - radius)
+                        quadraticTo(left, bottom, left + radius, bottom)
+                        lineTo(right - radius, bottom)
+                        quadraticTo(right, bottom, right, bottom - radius)
+                    }
+                }
+                onDrawBehind {
+                    drawPath(path = path, color = borderColor, style = Stroke(strokeWidth))
+                }
+            },
+    ) {
+        content()
+    }
+}
+
+@Composable
 private fun CompactMonthHabitGrid(
-    habits: List<Habit>,
-    days: List<HabitDay>,
+    habits: ImmutableListSnapshot<Habit>,
+    days: ImmutableListSnapshot<HabitDay>,
+    colorsByHabitId: ImmutableMapSnapshot<Long, Color>,
 ) {
     BoxWithConstraints(
         modifier = Modifier
@@ -418,10 +576,6 @@ private fun CompactMonthHabitGrid(
             days.filterIndexed { index, _ -> index % 7 == 0 }
         }
         val legendRows = remember(habits) { habits.chunked(2) }
-        val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-        val colorsByHabitId = remember(habits, darkTheme) {
-            habits.associate { habit -> habit.id to habitColor(habit.colorHue, darkTheme) }
-        }
         val outlineColor = MaterialTheme.colorScheme.outlineVariant
         val gridHeight = if (habits.isEmpty()) {
             0.dp
@@ -453,6 +607,12 @@ private fun CompactMonthHabitGrid(
                         val squareSizePx = squareSize.toPx()
                         val rowHeightPx = MonthMatrixRowHeight.toPx()
                         val rowStepPx = rowHeightPx + MonthMatrixRowSpacing.toPx()
+                        val rowTops = FloatArray(habits.size) { habitIndex ->
+                            habitIndex * rowStepPx + (rowHeightPx - squareSizePx) / 2f
+                        }
+                        val columnLefts = FloatArray(days.size) { dayIndex ->
+                            dayIndex * columnWidthPx + (columnWidthPx - squareSizePx) / 2f
+                        }
                         val cornerRadius = CornerRadius(2.dp.toPx())
                         val todayStroke = Stroke(width = 0.5.dp.toPx())
                         val borderInset = todayStroke.width / 2f
@@ -460,35 +620,42 @@ private fun CompactMonthHabitGrid(
                             x = (cornerRadius.x - borderInset).coerceAtLeast(0f),
                             y = (cornerRadius.y - borderInset).coerceAtLeast(0f),
                         )
+                        val unscheduledColor = outlineColor.copy(alpha = 0.12f)
+                        val futureColor = outlineColor.copy(alpha = 0.18f)
+                        val incompleteColor = outlineColor.copy(alpha = 0.42f)
+                        val habitColors = Array(habits.size) { habitIndex ->
+                            colorsByHabitId.getValue(habits[habitIndex].id)
+                        }
+                        val cellColors = Array(habits.size) { habitIndex ->
+                            val habit = habits[habitIndex]
+                            Array(days.size) { dayIndex ->
+                                val day = days[dayIndex]
+                                when {
+                                    day.key in habit.completedDayKeys -> habitColors[habitIndex]
+                                    !habit.isScheduledOn(day.key, day.weekday) -> unscheduledColor
+                                    day.isFuture -> futureColor
+                                    else -> incompleteColor
+                                }
+                            }
+                        }
+                        val todayIndex = days.indexOfFirst { day -> day.isToday }
 
                         onDrawBehind {
-                            habits.forEachIndexed { habitIndex, habit ->
-                                val habitColor = colorsByHabitId.getValue(habit.id)
-                                val top = habitIndex * rowStepPx + (rowHeightPx - squareSizePx) / 2f
-                                days.forEachIndexed { dayIndex, day ->
-                                    val completed = day.key in habit.completedDayKeys
-                                    val scheduled = habit.isScheduledOn(day.key, day.weekday)
-                                    val cellColor = when {
-                                        completed -> habitColor
-                                        !scheduled -> outlineColor.copy(alpha = 0.12f)
-                                        else -> outlineColor.copy(
-                                            alpha = if (day.isFuture) 0.18f else 0.42f,
-                                        )
-                                    }
+                            repeat(habits.size) { habitIndex ->
+                                repeat(days.size) { dayIndex ->
                                     val cellTopLeft = Offset(
-                                        x = dayIndex * columnWidthPx +
-                                            (columnWidthPx - squareSizePx) / 2f,
-                                        y = top,
+                                        x = columnLefts[dayIndex],
+                                        y = rowTops[habitIndex],
                                     )
                                     drawRoundRect(
-                                        color = cellColor,
+                                        color = cellColors[habitIndex][dayIndex],
                                         topLeft = cellTopLeft,
                                         size = Size(squareSizePx, squareSizePx),
                                         cornerRadius = cornerRadius,
                                     )
-                                    if (day.isToday) {
+                                    if (dayIndex == todayIndex) {
                                         drawRoundRect(
-                                            color = habitColor,
+                                            color = habitColors[habitIndex],
                                             topLeft = cellTopLeft + Offset(borderInset, borderInset),
                                             size = Size(
                                                 squareSizePx - todayStroke.width,
@@ -564,8 +731,7 @@ private fun MatrixCornerCell() {
 }
 
 @Composable
-private fun HabitNameCell(habit: Habit) {
-    val color = habitColor(habit)
+private fun HabitNameCell(habit: Habit, color: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -590,7 +756,7 @@ private fun HabitNameCell(habit: Habit) {
 
 @Composable
 private fun DayHeaderRow(
-    days: List<HabitDay>,
+    days: ImmutableListSnapshot<HabitDay>,
     dayColumnWidth: Dp,
 ) {
     Row {
@@ -599,7 +765,7 @@ private fun DayHeaderRow(
                 modifier = Modifier
                     .width(dayColumnWidth)
                     .height(MatrixHeaderHeight)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(DayHeaderCellShape)
                     .background(
                         if (day.isToday) {
                             MaterialTheme.colorScheme.primaryContainer
@@ -628,12 +794,12 @@ private fun DayHeaderRow(
 @Composable
 private fun HabitCompletionRow(
     habit: Habit,
-    days: List<HabitDay>,
+    color: Color,
+    days: ImmutableListSnapshot<HabitDay>,
     dayColumnWidth: Dp,
     completionSize: Dp,
     onToggleCompletion: (Long, Int) -> Unit,
 ) {
-    val color = habitColor(habit)
     val periodIdentity = days.firstOrNull()?.key
     val dueDays = remember(
         habit.scheduledWeekdays,
@@ -800,9 +966,9 @@ private fun HabitStreaksHeader(
 @Composable
 private fun HabitStreakCard(
     habit: Habit,
+    color: Color,
     streak: Int,
 ) {
-    val color = habitColor(habit)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = HabitStreakShape,
@@ -837,7 +1003,8 @@ private fun HabitStreakCard(
 
 @Composable
 private fun HabitDeletionPickerDialog(
-    habits: List<Habit>,
+    habits: ImmutableListSnapshot<Habit>,
+    colorsByHabitId: ImmutableMapSnapshot<Long, Color>,
     onDismiss: () -> Unit,
     onHabitSelected: (Habit) -> Unit,
 ) {
@@ -855,7 +1022,7 @@ private fun HabitDeletionPickerDialog(
                 )
                 habits.forEach { habit ->
                     val selected = selectedHabit?.id == habit.id
-                    val color = habitColor(habit)
+                    val color = colorsByHabitId.getValue(habit.id)
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1075,14 +1242,6 @@ private fun AddHabitDialog(
     )
 }
 
-@Composable
-private fun habitColor(habit: Habit): Color {
-    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    return remember(habit.colorHue, darkTheme) {
-        habitColor(habit.colorHue, darkTheme)
-    }
-}
-
 private fun habitColor(hue: Float, darkTheme: Boolean): Color = Color.hsl(
     hue = hue,
     saturation = if (darkTheme) 0.55f else 0.58f,
@@ -1105,6 +1264,9 @@ private fun celebrationPulse(elapsedMillis: Float, index: Int): Float {
 
 private val HabitCompletionShape = RoundedCornerShape(9.dp)
 private val HabitStreakShape = RoundedCornerShape(16.dp)
+private val DayHeaderCellShape = RoundedCornerShape(10.dp)
+private val ListItemSpacing = 16.dp
+private val MatrixCornerRadius = 22.dp
 private val WeeklyHabitNameColumnWidth = 96.dp
 private val WeeklyCompletionSize = 24.dp
 private val MatrixHeaderHeight = 52.dp
@@ -1122,5 +1284,8 @@ private const val CELEBRATION_TOTAL_MILLIS = 1_190
 private const val HABITS_HEADER_KEY = "habits_header"
 private const val HABITS_CONTROLS_KEY = "habits_controls"
 private const val HABITS_MATRIX_KEY = "habits_matrix"
+private const val HABITS_MATRIX_HEADER_KEY = "habits_matrix_header"
 private const val HABITS_STREAKS_HEADER_KEY = "habits_streaks_header"
+private const val HABIT_MATRIX_HEADER_CONTENT_TYPE = "habit_matrix_header"
+private const val HABIT_MATRIX_ROW_CONTENT_TYPE = "habit_matrix_row"
 private const val HABIT_STREAK_CONTENT_TYPE = "habit_streak"

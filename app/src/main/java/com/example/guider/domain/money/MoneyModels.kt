@@ -1,6 +1,7 @@
 package com.example.guider.domain.money
 
 import androidx.compose.runtime.Immutable
+import com.example.guider.domain.collections.ImmutableListSnapshot
 
 @Immutable
 data class Spending(
@@ -12,7 +13,7 @@ data class Spending(
 
 @Immutable
 data class MoneyLedger(
-    val spendings: List<Spending> = emptyList(),
+    val spendings: ImmutableListSnapshot<Spending> = ImmutableListSnapshot(emptyList()),
     val periodStartDayKey: Int? = null,
     val totalMinor: Long = 0L,
 )

@@ -60,11 +60,13 @@ class RoomSleepRepository private constructor(
 
         suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomSleepRepository {
             val dao = database.sleepDao()
+            // Kept eager intentionally: notification and worker paths read activeSession.value
+            // even while no Compose screen is collecting the flow.
             val activeSession = dao.observeActiveSession()
                 .map { it?.toModel() }
                 .distinctUntilChanged()
                 .stateIn(scope)
-            val history = dao.observeHistory()
+            val history = dao.observeHistory(MAX_HISTORY_RECORDS)
                 .map { records -> records.map(SleepRecordEntity::toModel) }
                 .distinctUntilChanged()
                 .stateInWhileSubscribed(scope)

@@ -42,6 +42,20 @@ android {
     buildFeatures {
         compose = true
     }
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+composeCompiler {
+    if (providers.gradleProperty("guider.composeCompilerReports").orNull == "true") {
+        reportsDestination = layout.buildDirectory.dir("compose_compiler")
+        metricsDestination = layout.buildDirectory.dir("compose_compiler")
+    }
 }
 
 dependencies {
@@ -52,6 +66,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.core)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.androidx.room.runtime)
@@ -61,6 +76,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.room.testing)
 }
 
 baselineProfile {

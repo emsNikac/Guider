@@ -91,7 +91,13 @@ class RoomHabitRepository private constructor(
             if (state.isCompleted) {
                 dao.deleteCompletion(habitId, dayKey)
             } else {
-                dao.insertCompletion(HabitCompletionEntity(habitId, dayKey))
+                dao.insertCompletion(
+                    HabitCompletionEntity(
+                        habitId = habitId,
+                        dayKey = dayKey,
+                        weekday = weekday.name,
+                    ),
+                )
             }
         }
     }

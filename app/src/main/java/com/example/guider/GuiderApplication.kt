@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
+import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.core.content.ContextCompat
 import androidx.work.Configuration
 import com.example.guider.data.database.GuiderDatabase
@@ -22,6 +23,8 @@ import com.example.guider.domain.sleep.SleepRepository
 import com.example.guider.domain.tasks.DailyTaskRepository
 import com.example.guider.notifications.HibernationNotificationManager
 import com.example.guider.notifications.HibernationPromptScheduler
+import com.example.guider.ui.theme.bodyFontFamily
+import com.example.guider.ui.theme.displayFontFamily
 import com.example.guider.util.LocalizedFormatters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -59,6 +62,9 @@ class GuiderApplication : Application(), Configuration.Provider {
         }
     }
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val workerConfiguration by lazy(LazyThreadSafetyMode.NONE) {
+        Configuration.Builder().build()
+    }
     private val database by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         GuiderDatabase.create(this)
     }
@@ -109,6 +115,7 @@ class GuiderApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         LocalizedFormatters.refreshConfiguration()
+        preloadFonts()
         ContextCompat.registerReceiver(
             this,
             regionalSettingsReceiver,
@@ -127,7 +134,19 @@ class GuiderApplication : Application(), Configuration.Provider {
     }
 
     override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder().build()
+        get() = workerConfiguration
+
+    private fun preloadFonts() {
+        applicationScope.launch {
+            runCatching {
+                val resolver = createFontFamilyResolver(this@GuiderApplication)
+                resolver.preload(bodyFontFamily)
+                resolver.preload(displayFontFamily)
+            }.onFailure { error ->
+                Log.w(TAG, "Unable to preload bundled fonts", error)
+            }
+        }
+    }
 
     fun featureStatus(feature: AppFeature): FeatureLoadStatus =
         featureStatuses.value.getValue(feature)

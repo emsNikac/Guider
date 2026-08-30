@@ -5,11 +5,9 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.guider.GuiderApplication
-import com.example.guider.domain.money.MoneyLedger
 import com.example.guider.domain.money.Spending
 import com.example.guider.domain.time.DayKeys
-import com.example.guider.ui.util.ImmutableListSnapshot
-import com.example.guider.ui.util.toImmutableSnapshot
+import com.example.guider.domain.collections.ImmutableListSnapshot
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -17,8 +15,8 @@ import kotlinx.coroutines.launch
 
 @Immutable
 internal data class MoneyUiState(
-    val ledger: MoneyLedger = MoneyLedger(),
     val totalMinor: Long = 0L,
+    val periodStartDayKey: Int? = null,
     val sortedSpendings: ImmutableListSnapshot<Spending> = ImmutableListSnapshot(emptyList()),
 )
 
@@ -28,9 +26,9 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
     internal val uiState = repository.ledger
         .map { ledger ->
             MoneyUiState(
-                ledger = ledger,
                 totalMinor = ledger.totalMinor,
-                sortedSpendings = ledger.spendings.toImmutableSnapshot(),
+                periodStartDayKey = ledger.periodStartDayKey,
+                sortedSpendings = ledger.spendings,
             )
         }
         .stateIn(

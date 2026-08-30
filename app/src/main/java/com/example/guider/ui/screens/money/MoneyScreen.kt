@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -75,7 +76,6 @@ private fun MoneyScreen(
     onRestart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val ledger = uiState.ledger
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var spendingBeingEdited by remember { mutableStateOf<Spending?>(null) }
     var spendingPendingDeletion by remember { mutableStateOf<Spending?>(null) }
@@ -98,17 +98,17 @@ private fun MoneyScreen(
         item(key = MONEY_TOTAL_KEY) {
             TotalSpentCard(
                 totalMinor = uiState.totalMinor,
-                periodStartDayKey = ledger.periodStartDayKey,
+                periodStartDayKey = uiState.periodStartDayKey,
             )
         }
         item(key = MONEY_HISTORY_HEADER_KEY) {
             SpendingHistoryHeader(
-                spendingCount = ledger.spendings.size,
-                restartEnabled = ledger.periodStartDayKey != null,
+                spendingCount = uiState.sortedSpendings.size,
+                restartEnabled = uiState.periodStartDayKey != null,
                 onRestart = { showRestartDialog = true },
             )
         }
-        if (ledger.spendings.isEmpty()) {
+        if (uiState.sortedSpendings.isEmpty()) {
             item(key = MONEY_EMPTY_KEY) {
                 EmptySpendingCard(onAddSpending = { showAddDialog = true })
             }
@@ -202,10 +202,12 @@ private fun TotalSpentCard(
     totalMinor: Long,
     periodStartDayKey: Int?,
 ) {
-    val periodLabel = remember(periodStartDayKey) {
+    val configuration = LocalConfiguration.current
+    val periodLabel = remember(periodStartDayKey, configuration) {
         periodStartDayKey?.let { "Money spent since ${formatDayKey(it)}" }
             ?: "Your tracking period starts with the first spending."
     }
+    val formattedTotal = remember(totalMinor, configuration) { formatMoney(totalMinor) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -218,7 +220,7 @@ private fun TotalSpentCard(
         ) {
             Text("Total spent", style = MaterialTheme.typography.labelLarge)
             Text(
-                text = formatMoney(totalMinor),
+                text = formattedTotal,
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -273,6 +275,13 @@ private fun SpendingCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val configuration = LocalConfiguration.current
+    val spendingDate = remember(spending.createdAtEpochMillis, configuration) {
+        "${formatSpendingDate(spending.createdAtEpochMillis)} · Tap to edit"
+    }
+    val spendingAmount = remember(spending.amountMinor, configuration) {
+        formatMoney(spending.amountMinor)
+    }
     ElevatedCard(
         onClick = onEdit,
         modifier = Modifier.fillMaxWidth(),
@@ -295,14 +304,14 @@ private fun SpendingCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${formatSpendingDate(spending.createdAtEpochMillis)} · Tap to edit",
+                    text = spendingDate,
                     modifier = Modifier.padding(top = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(
-                text = formatMoney(spending.amountMinor),
+                text = spendingAmount,
                 modifier = Modifier.padding(start = 12.dp),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
@@ -324,12 +333,16 @@ private fun DeleteSpendingDialog(
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val configuration = LocalConfiguration.current
+    val formattedAmount = remember(spending.amountMinor, configuration) {
+        formatMoney(spending.amountMinor)
+    }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete spending?") },
         text = {
             Text(
-                text = "Delete “${spending.title}” (${formatMoney(spending.amountMinor)}) from the total?",
+                text = "Delete “${spending.title}” ($formattedAmount) from the total?",
                 style = MaterialTheme.typography.bodyMedium,
             )
         },

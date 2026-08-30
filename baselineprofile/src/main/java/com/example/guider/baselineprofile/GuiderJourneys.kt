@@ -45,7 +45,7 @@ internal fun MacrobenchmarkScope.exerciseCommonJourneys() {
     scrollCurrentScreen()
 }
 
-private fun MacrobenchmarkScope.openDestination(label: String) {
+internal fun MacrobenchmarkScope.openDestination(label: String) {
     val navigationItem = device.wait(
         Until.findObject(By.desc(label)),
         UI_TIMEOUT_MILLIS,
@@ -58,7 +58,7 @@ private fun MacrobenchmarkScope.openDestination(label: String) {
     device.waitForIdle()
 }
 
-private fun MacrobenchmarkScope.scrollCurrentScreen() {
+internal fun MacrobenchmarkScope.scrollCurrentScreen() {
     val centerX = device.displayWidth / 2
     val lowerY = device.displayHeight * 3 / 4
     val upperY = device.displayHeight / 3

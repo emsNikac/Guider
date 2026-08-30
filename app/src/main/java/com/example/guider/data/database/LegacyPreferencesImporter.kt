@@ -1,8 +1,10 @@
 package com.example.guider.data.database
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.room.withTransaction
 import com.example.guider.domain.goals.Goal
+import com.example.guider.domain.collections.toImmutableSnapshot
 import com.example.guider.domain.goals.GoalType
 import com.example.guider.domain.habits.Habit
 import com.example.guider.domain.habits.HabitWeekday
@@ -56,7 +58,11 @@ class LegacyPreferencesImporter(private val context: Context) {
             database.habitDao().insertCompletions(
                 snapshot.habits.flatMap { habit ->
                     habit.completedDayKeys.map { dayKey ->
-                        HabitCompletionEntity(habitId = habit.id, dayKey = dayKey)
+                        HabitCompletionEntity(
+                            habitId = habit.id,
+                            dayKey = dayKey,
+                            weekday = HabitWeekday.fromCalendarValue(DayKeys.weekday(dayKey)).name,
+                        )
                     }
                 },
             )
@@ -65,6 +71,7 @@ class LegacyPreferencesImporter(private val context: Context) {
                 database.sleepDao().setActiveSession(session.toEntity())
             }
             database.sleepDao().insertRecords(snapshot.sleepHistory.map(SleepRecord::toEntity))
+            database.sleepDao().trimHistory(MAX_SLEEP_HISTORY_RECORDS)
 
             database.moneyDao().setState(
                 MoneyStateEntity(periodStartDayKey = snapshot.moneyLedger.periodStartDayKey),
@@ -78,17 +85,26 @@ class LegacyPreferencesImporter(private val context: Context) {
         }
     }
 
-    private fun readSnapshot(): LegacySnapshot = LegacySnapshot(
-        tasks = readTasks(),
-        goals = readGoals(),
-        habits = readHabits(),
-        activeSleepSession = readActiveSleepSession(),
-        sleepHistory = readSleepHistory(),
-        moneyLedger = readMoneyLedger(),
-    )
+    private fun readSnapshot(): LegacySnapshot {
+        val taskPreferences = preferences(TASK_PREFERENCES)
+        val goalPreferences = preferences(GOAL_PREFERENCES)
+        val habitPreferences = preferences(HABIT_PREFERENCES)
+        val sleepPreferences = preferences(SLEEP_PREFERENCES)
+        val moneyPreferences = preferences(MONEY_PREFERENCES)
+        return LegacySnapshot(
+            tasks = readTasks(taskPreferences),
+            goals = readGoals(goalPreferences),
+            habits = readHabits(habitPreferences),
+            activeSleepSession = readActiveSleepSession(sleepPreferences),
+            sleepHistory = readSleepHistory(sleepPreferences),
+            moneyLedger = readMoneyLedger(moneyPreferences),
+        )
+    }
 
-    private fun readTasks(): List<DailyTask> {
-        val preferences = context.getSharedPreferences(TASK_PREFERENCES, Context.MODE_PRIVATE)
+    private fun preferences(name: String): SharedPreferences =
+        context.getSharedPreferences(name, Context.MODE_PRIVATE)
+
+    private fun readTasks(preferences: SharedPreferences): List<DailyTask> {
         val encoded = preferences.getString(KEY_TASKS, null) ?: return starterTasks()
         return runCatching {
             val array = JSONArray(encoded)
@@ -111,8 +127,7 @@ class LegacyPreferencesImporter(private val context: Context) {
         }.getOrElse { starterTasks() }
     }
 
-    private fun readGoals(): List<Goal> {
-        val preferences = context.getSharedPreferences(GOAL_PREFERENCES, Context.MODE_PRIVATE)
+    private fun readGoals(preferences: SharedPreferences): List<Goal> {
         val encoded = preferences.getString(KEY_GOALS, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(encoded)
@@ -152,8 +167,7 @@ class LegacyPreferencesImporter(private val context: Context) {
         }.getOrElse { emptyList() }
     }
 
-    private fun readHabits(): List<Habit> {
-        val preferences = context.getSharedPreferences(HABIT_PREFERENCES, Context.MODE_PRIVATE)
+    private fun readHabits(preferences: SharedPreferences): List<Habit> {
         val encoded = preferences.getString(KEY_HABITS, null) ?: return starterHabits
         return runCatching {
             val array = JSONArray(encoded)
@@ -185,8 +199,7 @@ class LegacyPreferencesImporter(private val context: Context) {
         }.getOrElse { starterHabits }
     }
 
-    private fun readActiveSleepSession(): ActiveSleepSession? {
-        val preferences = context.getSharedPreferences(SLEEP_PREFERENCES, Context.MODE_PRIVATE)
+    private fun readActiveSleepSession(preferences: SharedPreferences): ActiveSleepSession? {
         if (!preferences.contains(KEY_ACTIVE_ACTIVATED_AT)) return null
         return ActiveSleepSession(
             activatedAtEpochMillis = preferences.getLong(KEY_ACTIVE_ACTIVATED_AT, 0L),
@@ -194,8 +207,7 @@ class LegacyPreferencesImporter(private val context: Context) {
         )
     }
 
-    private fun readSleepHistory(): List<SleepRecord> {
-        val preferences = context.getSharedPreferences(SLEEP_PREFERENCES, Context.MODE_PRIVATE)
+    private fun readSleepHistory(preferences: SharedPreferences): List<SleepRecord> {
         val encoded = preferences.getString(KEY_SLEEP_HISTORY, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(encoded)
@@ -215,8 +227,7 @@ class LegacyPreferencesImporter(private val context: Context) {
         }.getOrElse { emptyList() }
     }
 
-    private fun readMoneyLedger(): MoneyLedger {
-        val preferences = context.getSharedPreferences(MONEY_PREFERENCES, Context.MODE_PRIVATE)
+    private fun readMoneyLedger(preferences: SharedPreferences): MoneyLedger {
         return runCatching {
             val encoded = preferences.getString(KEY_SPENDINGS, null)
             val spendings = if (encoded == null) {
@@ -238,7 +249,7 @@ class LegacyPreferencesImporter(private val context: Context) {
                 }
             }
             MoneyLedger(
-                spendings = spendings,
+                spendings = spendings.toImmutableSnapshot(),
                 periodStartDayKey = preferences
                     .takeIf { it.contains(KEY_PERIOD_START) }
                     ?.getInt(KEY_PERIOD_START, 0)
@@ -277,6 +288,7 @@ class LegacyPreferencesImporter(private val context: Context) {
     )
 
     private companion object {
+        const val MAX_SLEEP_HISTORY_RECORDS = 365
         const val IMPORT_KEY = "legacy_shared_preferences_imported"
         const val DEFAULT_GOAL_PERIOD_DAYS = 14
 

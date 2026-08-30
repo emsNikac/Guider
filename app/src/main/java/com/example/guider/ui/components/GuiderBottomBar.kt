@@ -23,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,7 +87,7 @@ internal fun GuiderBottomBar(
                 val destinations = GuiderDestination.entries
                 val itemWidth = maxWidth / destinations.size
                 val selectedIndex = destinations.indexOf(selectedDestination)
-                val indicatorOffset by animateDpAsState(
+                val indicatorOffset = animateDpAsState(
                     targetValue = itemWidth * selectedIndex,
                     animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
                     label = "Bottom navigation position",
@@ -96,7 +95,7 @@ internal fun GuiderBottomBar(
 
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(indicatorOffset.roundToPx(), 0) }
+                        .offset { IntOffset(indicatorOffset.value.roundToPx(), 0) }
                         .width(itemWidth)
                         .fillMaxHeight(),
                     contentAlignment = Alignment.Center,
