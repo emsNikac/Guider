@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "693965484704",
+    "project_id": "guider-d8b9c",
+    "storage_bucket": "guider-d8b9c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:693965484704:android:731aff282d9fb724334fc5",
+        "android_client_info": {
+          "package_name": "com.nikac.guider"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "693965484704-amdvb8ls5kaa3dh50vrkcce389npd2ij.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nikac.guider",
+            "certificate_hash": "cad5adec6b8ecadb549f0bb7108f4f469f9c83ae"
+          }
+        },
+        {
+          "client_id": "693965484704-2o8ojjm3qpdl896m7lohqgdti4i14of0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYMaM2aZeIN1YqYChzkHlSkCEQoyIf5gU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "693965484704-2o8ojjm3qpdl896m7lohqgdti4i14of0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

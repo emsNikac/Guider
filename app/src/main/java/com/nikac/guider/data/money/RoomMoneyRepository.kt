@@ -1,0 +1,91 @@
+package com.nikac.guider.data.money
+
+import androidx.room.withTransaction
+import com.nikac.guider.data.database.GuiderDatabase
+import com.nikac.guider.data.database.MoneyStateEntity
+import com.nikac.guider.data.database.MoneyLedgerRow
+import com.nikac.guider.data.database.SpendingEntity
+import com.nikac.guider.data.database.toModel
+import com.nikac.guider.data.stateInWhileSubscribed
+import com.nikac.guider.domain.money.MoneyLedger
+import com.nikac.guider.domain.money.MoneyRepository
+import com.nikac.guider.domain.money.Spending
+import com.nikac.guider.domain.collections.toImmutableSnapshot
+import com.nikac.guider.domain.time.DayKeys
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+
+class RoomMoneyRepository private constructor(
+    private val database: GuiderDatabase,
+    override val ledger: StateFlow<MoneyLedger>,
+) : MoneyRepository {
+    private val dao = database.moneyDao()
+
+    override suspend fun addSpending(
+        title: String,
+        amountMinor: Long,
+        createdAtEpochMillis: Long,
+    ): Spending = database.withTransaction {
+        require(title.isNotBlank())
+        require(amountMinor > 0L)
+        dao.setPeriodStartIfMissing(DayKeys.today(createdAtEpochMillis))
+        val entity = SpendingEntity(
+            title = title.trim(),
+            amountMinor = amountMinor,
+            createdAtEpochMillis = createdAtEpochMillis,
+        )
+        entity.copy(id = dao.insertSpending(entity)).toModel()
+    }
+
+    override suspend fun editSpending(spendingId: Long, title: String, amountMinor: Long) {
+        require(title.isNotBlank())
+        require(amountMinor > 0L)
+        dao.editSpending(spendingId, title.trim(), amountMinor)
+    }
+
+    override suspend fun deleteSpending(spendingId: Long) {
+        dao.deleteSpending(spendingId)
+    }
+
+    override suspend fun restart(dayKey: Int) {
+        database.withTransaction {
+            dao.clearSpendings()
+            dao.setState(MoneyStateEntity(periodStartDayKey = dayKey))
+        }
+    }
+
+    companion object {
+        suspend fun create(database: GuiderDatabase, scope: CoroutineScope): RoomMoneyRepository {
+            val dao = database.moneyDao()
+            val ledger = dao.observeLedger()
+                .map { rows -> rows.toMoneyLedger() }
+                .distinctUntilChanged()
+                .stateInWhileSubscribed(scope)
+            return RoomMoneyRepository(
+                database = database,
+                ledger = ledger,
+            )
+        }
+    }
+}
+
+internal fun List<MoneyLedgerRow>.toMoneyLedger(): MoneyLedger {
+    val spendings = mapNotNull(MoneyLedgerRow::toSpending)
+    return MoneyLedger(
+        spendings = spendings.toImmutableSnapshot(),
+        periodStartDayKey = firstOrNull()?.periodStartDayKey,
+        totalMinor = spendings.sumOf(Spending::amountMinor),
+    )
+}
+
+private fun MoneyLedgerRow.toSpending(): Spending? {
+    val id = spendingId ?: return null
+    return Spending(
+        id = id,
+        title = spendingTitle ?: return null,
+        amountMinor = spendingAmountMinor ?: return null,
+        createdAtEpochMillis = spendingCreatedAtEpochMillis ?: return null,
+    )
+}

@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.guider.baselineprofile"
+    namespace = "com.nikac.guider.baselineprofile"
     compileSdk {
         version = release(36)
     }

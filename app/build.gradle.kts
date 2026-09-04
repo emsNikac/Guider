@@ -4,16 +4,23 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.services)
+}
+
+googleServices {
+    // Keep guest-only builds usable until app/google-services.json is supplied.
+    missingGoogleServicesStrategy =
+        com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.IGNORE
 }
 
 android {
-    namespace = "com.example.guider"
+    namespace = "com.nikac.guider"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.guider"
+        applicationId = "com.nikac.guider"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -66,6 +73,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.google.id)
     implementation(libs.kotlinx.serialization.core)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.profileinstaller)
@@ -74,6 +87,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     baselineProfile(project(":baselineprofile"))
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.room.testing)
