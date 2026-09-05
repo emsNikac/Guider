@@ -1,0 +1,869 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "b7443ef66c27f1202a03cd73306a70b8",
+    "entities": [
+      {
+        "tableName": "goals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `ownerId` TEXT NOT NULL DEFAULT 'guest', `remoteId` TEXT NOT NULL DEFAULT '', `title` TEXT NOT NULL, `type` TEXT NOT NULL, `createdDayKey` INTEGER NOT NULL, `achievedDayKey` INTEGER, `startDayKey` INTEGER, `endDayKey` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `archivedAtEpochMillis` INTEGER, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdDayKey",
+            "columnName": "createdDayKey",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "achievedDayKey",
+            "columnName": "achievedDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "startDayKey",
+            "columnName": "startDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "endDayKey",
+            "columnName": "endDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "archivedAtEpochMillis",
+            "columnName": "archivedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_goals_ownerId_remoteId",
+            "unique": true,
+            "columnNames": [
+              "ownerId",
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_goals_ownerId_remoteId` ON `${TABLE_NAME}` (`ownerId`, `remoteId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "daily_tasks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `ownerId` TEXT NOT NULL DEFAULT 'guest', `remoteId` TEXT NOT NULL DEFAULT '', `category` TEXT NOT NULL, `title` TEXT NOT NULL, `isFinished` INTEGER NOT NULL, `createdDayKey` INTEGER NOT NULL, `completedDayKey` INTEGER, `linkedGoalId` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `archivedAtEpochMillis` INTEGER, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(`linkedGoalId`) REFERENCES `goals`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFinished",
+            "columnName": "isFinished",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdDayKey",
+            "columnName": "createdDayKey",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedDayKey",
+            "columnName": "completedDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "linkedGoalId",
+            "columnName": "linkedGoalId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "archivedAtEpochMillis",
+            "columnName": "archivedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_tasks_linkedGoalId",
+            "unique": false,
+            "columnNames": [
+              "linkedGoalId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_tasks_linkedGoalId` ON `${TABLE_NAME}` (`linkedGoalId`)"
+          },
+          {
+            "name": "index_daily_tasks_ownerId_remoteId",
+            "unique": true,
+            "columnNames": [
+              "ownerId",
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_tasks_ownerId_remoteId` ON `${TABLE_NAME}` (`ownerId`, `remoteId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "goals",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "linkedGoalId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "habits",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `ownerId` TEXT NOT NULL DEFAULT 'guest', `remoteId` TEXT NOT NULL DEFAULT '', `name` TEXT NOT NULL, `colorHue` REAL NOT NULL, `linkedGoalId` INTEGER, `activeStartDayKey` INTEGER, `activeEndDayKey` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(`linkedGoalId`) REFERENCES `goals`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorHue",
+            "columnName": "colorHue",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "linkedGoalId",
+            "columnName": "linkedGoalId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "activeStartDayKey",
+            "columnName": "activeStartDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "activeEndDayKey",
+            "columnName": "activeEndDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_habits_linkedGoalId",
+            "unique": false,
+            "columnNames": [
+              "linkedGoalId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_habits_linkedGoalId` ON `${TABLE_NAME}` (`linkedGoalId`)"
+          },
+          {
+            "name": "index_habits_ownerId_remoteId",
+            "unique": true,
+            "columnNames": [
+              "ownerId",
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_habits_ownerId_remoteId` ON `${TABLE_NAME}` (`ownerId`, `remoteId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "goals",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "linkedGoalId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "habit_weekdays",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`habitId` INTEGER NOT NULL, `weekday` TEXT NOT NULL, PRIMARY KEY(`habitId`, `weekday`), FOREIGN KEY(`habitId`) REFERENCES `habits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "habitId",
+            "columnName": "habitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weekday",
+            "columnName": "weekday",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "habitId",
+            "weekday"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "habits",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "habitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "habit_completions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`habitId` INTEGER NOT NULL, `dayKey` INTEGER NOT NULL, `weekday` TEXT NOT NULL, `remoteId` TEXT NOT NULL DEFAULT '', `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`habitId`, `dayKey`), FOREIGN KEY(`habitId`) REFERENCES `habits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "habitId",
+            "columnName": "habitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayKey",
+            "columnName": "dayKey",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weekday",
+            "columnName": "weekday",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "habitId",
+            "dayKey"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_habit_completions_dayKey",
+            "unique": false,
+            "columnNames": [
+              "dayKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_habit_completions_dayKey` ON `${TABLE_NAME}` (`dayKey`)"
+          },
+          {
+            "name": "index_habit_completions_habitId_weekday",
+            "unique": false,
+            "columnNames": [
+              "habitId",
+              "weekday"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_habit_completions_habitId_weekday` ON `${TABLE_NAME}` (`habitId`, `weekday`)"
+          },
+          {
+            "name": "index_habit_completions_remoteId",
+            "unique": true,
+            "columnNames": [
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_habit_completions_remoteId` ON `${TABLE_NAME}` (`remoteId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "habits",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "habitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "active_sleep_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL DEFAULT 'guest', `activatedAtEpochMillis` INTEGER NOT NULL, `sleepStartsAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`ownerId`))",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "activatedAtEpochMillis",
+            "columnName": "activatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sleepStartsAtEpochMillis",
+            "columnName": "sleepStartsAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId"
+          ]
+        }
+      },
+      {
+        "tableName": "sleep_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `ownerId` TEXT NOT NULL DEFAULT 'guest', `remoteId` TEXT NOT NULL DEFAULT '', `activatedAtEpochMillis` INTEGER NOT NULL, `sleepStartsAtEpochMillis` INTEGER NOT NULL, `endedAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "activatedAtEpochMillis",
+            "columnName": "activatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sleepStartsAtEpochMillis",
+            "columnName": "sleepStartsAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtEpochMillis",
+            "columnName": "endedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sleep_records_endedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "endedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sleep_records_endedAtEpochMillis` ON `${TABLE_NAME}` (`endedAtEpochMillis`)"
+          },
+          {
+            "name": "index_sleep_records_ownerId_remoteId",
+            "unique": true,
+            "columnNames": [
+              "ownerId",
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sleep_records_ownerId_remoteId` ON `${TABLE_NAME}` (`ownerId`, `remoteId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "money_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerId` TEXT NOT NULL DEFAULT 'guest', `currentPeriodRemoteId` TEXT NOT NULL DEFAULT '', `periodStartDayKey` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `syncPending` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`ownerId`))",
+        "fields": [
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "currentPeriodRemoteId",
+            "columnName": "currentPeriodRemoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "periodStartDayKey",
+            "columnName": "periodStartDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ownerId"
+          ]
+        }
+      },
+      {
+        "tableName": "money_periods",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`remoteId` TEXT NOT NULL, `ownerId` TEXT NOT NULL DEFAULT 'guest', `startDayKey` INTEGER, `endDayKey` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`remoteId`))",
+        "fields": [
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "startDayKey",
+            "columnName": "startDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "endDayKey",
+            "columnName": "endDayKey",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "remoteId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_money_periods_ownerId",
+            "unique": false,
+            "columnNames": [
+              "ownerId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_money_periods_ownerId` ON `${TABLE_NAME}` (`ownerId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "spendings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `ownerId` TEXT NOT NULL DEFAULT 'guest', `remoteId` TEXT NOT NULL DEFAULT '', `periodRemoteId` TEXT NOT NULL DEFAULT '', `title` TEXT NOT NULL, `amountMinor` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL DEFAULT 0, `deletedAtEpochMillis` INTEGER, `syncPending` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'guest'"
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "periodRemoteId",
+            "columnName": "periodRemoteId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amountMinor",
+            "columnName": "amountMinor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "deletedAtEpochMillis",
+            "columnName": "deletedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncPending",
+            "columnName": "syncPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_spendings_ownerId_periodRemoteId",
+            "unique": false,
+            "columnNames": [
+              "ownerId",
+              "periodRemoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_spendings_ownerId_periodRemoteId` ON `${TABLE_NAME}` (`ownerId`, `periodRemoteId`)"
+          },
+          {
+            "name": "index_spendings_createdAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "createdAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_spendings_createdAtEpochMillis` ON `${TABLE_NAME}` (`createdAtEpochMillis`)"
+          },
+          {
+            "name": "index_spendings_ownerId_remoteId",
+            "unique": true,
+            "columnNames": [
+              "ownerId",
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_spendings_ownerId_remoteId` ON `${TABLE_NAME}` (`ownerId`, `remoteId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "app_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b7443ef66c27f1202a03cd73306a70b8')"
+    ]
+  }
+}

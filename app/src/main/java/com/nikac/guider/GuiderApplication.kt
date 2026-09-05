@@ -16,11 +16,13 @@ import com.nikac.guider.data.habits.RoomHabitRepository
 import com.nikac.guider.data.money.RoomMoneyRepository
 import com.nikac.guider.data.sleep.RoomSleepRepository
 import com.nikac.guider.data.tasks.RoomDailyTaskRepository
+import com.nikac.guider.data.sync.FirebaseUserDataSync
 import com.nikac.guider.domain.goals.GoalRepository
 import com.nikac.guider.domain.habits.HabitRepository
 import com.nikac.guider.domain.money.MoneyRepository
 import com.nikac.guider.domain.sleep.SleepRepository
 import com.nikac.guider.domain.tasks.DailyTaskRepository
+import com.nikac.guider.domain.sync.UserDataSync
 import com.nikac.guider.notifications.HibernationNotificationManager
 import com.nikac.guider.notifications.HibernationPromptScheduler
 import com.nikac.guider.ui.theme.bodyFontFamily
@@ -74,6 +76,14 @@ class GuiderApplication : Application(), Configuration.Provider {
             LegacyPreferencesImporter(this@GuiderApplication).importIfNeeded(database)
             database
         }.also { it.start() }
+    }
+    val userDataSync: UserDataSync by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        FirebaseUserDataSync(
+            context = this,
+            database = database,
+            applicationScope = applicationScope,
+            awaitDatabaseReady = { initializedDatabase.await() },
+        )
     }
     private val featureJobs = mutableMapOf<AppFeature, Job>()
     private var featureWarmupJob: Job? = null
@@ -235,14 +245,21 @@ class GuiderApplication : Application(), Configuration.Provider {
 
     private suspend fun loadDailyTasks() {
         dailyTaskRepository = RoomDailyTaskRepository.create(
-            dao = initializedDatabase.await().dailyTaskDao(),
+            database = initializedDatabase.await(),
             scope = applicationScope,
+            owner = userDataSync.owner,
+            onDataChanged = userDataSync::requestUpload,
         )
     }
 
     private suspend fun loadSleep() = coroutineScope {
         val sleep = async {
-            RoomSleepRepository.create(initializedDatabase.await(), applicationScope)
+            RoomSleepRepository.create(
+                database = initializedDatabase.await(),
+                scope = applicationScope,
+                owner = userDataSync.owner,
+                onDataChanged = userDataSync::requestUpload,
+            )
         }
         val notificationManager = async(Dispatchers.IO) {
             HibernationNotificationManager(this@GuiderApplication).also { manager ->
@@ -259,23 +276,48 @@ class GuiderApplication : Application(), Configuration.Provider {
             context = this@GuiderApplication,
             backgroundScope = applicationScope,
         )
-        sleepRepository.activeSession.value?.let(hibernationNotificationManager::showActiveSession)
+        applicationScope.launch {
+            sleepRepository.activeSession.collect { session ->
+                if (session == null) {
+                    hibernationNotificationManager.cancelActiveSession()
+                    hibernationPromptScheduler.cancel()
+                } else {
+                    hibernationNotificationManager.showActiveSession(session)
+                    hibernationPromptScheduler.schedule(session)
+                }
+            }
+        }
     }
 
     private suspend fun loadHabits() {
-        habitRepository = RoomHabitRepository.create(initializedDatabase.await(), applicationScope)
+        habitRepository = RoomHabitRepository.create(
+            database = initializedDatabase.await(),
+            scope = applicationScope,
+            owner = userDataSync.owner,
+            onDataChanged = userDataSync::requestUpload,
+        )
     }
 
     private suspend fun loadGoals() {
         awaitFeature(AppFeature.DAILY_TASKS)
         awaitFeature(AppFeature.HABITS)
-        val repository = RoomGoalRepository.create(initializedDatabase.await(), applicationScope)
+        val repository = RoomGoalRepository.create(
+            database = initializedDatabase.await(),
+            scope = applicationScope,
+            owner = userDataSync.owner,
+            onDataChanged = userDataSync::requestUpload,
+        )
         goalRepository = repository
         mutableGoalRepository.value = repository
     }
 
     private suspend fun loadMoney() {
-        moneyRepository = RoomMoneyRepository.create(initializedDatabase.await(), applicationScope)
+        moneyRepository = RoomMoneyRepository.create(
+            database = initializedDatabase.await(),
+            scope = applicationScope,
+            owner = userDataSync.owner,
+            onDataChanged = userDataSync::requestUpload,
+        )
     }
 
     private fun updateFeatureStatus(feature: AppFeature, status: FeatureLoadStatus) {

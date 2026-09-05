@@ -50,7 +50,11 @@ class MainActivity : ComponentActivity() {
     private val session: AppSessionViewModel by viewModels {
         viewModelFactory {
             initializer {
-                AppSessionViewModel(LocalAppPreferences(application), FirebaseAuthRepository(application))
+                AppSessionViewModel(
+                    LocalAppPreferences(application),
+                    FirebaseAuthRepository(application),
+                    (application as GuiderApplication).userDataSync,
+                )
             }
         }
     }
@@ -126,6 +130,7 @@ class MainActivity : ComponentActivity() {
                             onThemeSelected = session::setThemeMode,
                             onGoogleSignIn = onGoogleSignIn,
                             onSignOut = session::signOut,
+                            onSyncNow = session::syncNow,
                         )
                     }
                 }

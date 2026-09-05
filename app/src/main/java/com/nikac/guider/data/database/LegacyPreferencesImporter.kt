@@ -71,13 +71,23 @@ class LegacyPreferencesImporter(private val context: Context) {
                 database.sleepDao().setActiveSession(session.toEntity())
             }
             database.sleepDao().insertRecords(snapshot.sleepHistory.map(SleepRecord::toEntity))
-            database.sleepDao().trimHistory(MAX_SLEEP_HISTORY_RECORDS)
 
+            val initialMoneyPeriodId = newRemoteId()
+            database.moneyDao().upsertPeriod(
+                MoneyPeriodEntity(
+                    remoteId = initialMoneyPeriodId,
+                    startDayKey = snapshot.moneyLedger.periodStartDayKey,
+                    endDayKey = null,
+                ),
+            )
             database.moneyDao().setState(
-                MoneyStateEntity(periodStartDayKey = snapshot.moneyLedger.periodStartDayKey),
+                MoneyStateEntity(
+                    currentPeriodRemoteId = initialMoneyPeriodId,
+                    periodStartDayKey = snapshot.moneyLedger.periodStartDayKey,
+                ),
             )
             database.moneyDao().insertSpendings(
-                snapshot.moneyLedger.spendings.map(Spending::toEntity),
+                snapshot.moneyLedger.spendings.map { it.toEntity(initialMoneyPeriodId) },
             )
             database.appMetadataDao().set(
                 AppMetadataEntity(key = IMPORT_KEY, value = "1"),
@@ -288,7 +298,6 @@ class LegacyPreferencesImporter(private val context: Context) {
     )
 
     private companion object {
-        const val MAX_SLEEP_HISTORY_RECORDS = 365
         const val IMPORT_KEY = "legacy_shared_preferences_imported"
         const val DEFAULT_GOAL_PERIOD_DAYS = 14
 
@@ -361,8 +370,9 @@ private fun SleepRecord.toEntity(): SleepRecordEntity = SleepRecordEntity(
     endedAtEpochMillis = endedAtEpochMillis,
 )
 
-private fun Spending.toEntity(): SpendingEntity = SpendingEntity(
+private fun Spending.toEntity(periodRemoteId: String): SpendingEntity = SpendingEntity(
     id = id,
+    periodRemoteId = periodRemoteId,
     title = title,
     amountMinor = amountMinor,
     createdAtEpochMillis = createdAtEpochMillis,

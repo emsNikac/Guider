@@ -1,0 +1,134 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owns(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validCommon(data) {
+      return data.schemaVersion is int
+        && data.schemaVersion >= 1
+        && data.updatedAtEpochMillis is int
+        && data.updatedAtEpochMillis >= 0;
+    }
+
+    function validOptionalInt(data, field) {
+      return data[field] == null || data[field] is int;
+    }
+
+    function validText(value, maximum) {
+      return value is string && value.size() > 0 && value.size() <= maximum;
+    }
+
+    match /users/{userId} {
+      allow read, write: if owns(userId);
+
+      match /dailyTasks/{taskId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && validCommon(request.resource.data)
+          && validText(request.resource.data.title, 300)
+          && request.resource.data.category in ['HEALTH', 'WORK', 'MENTAL_HEALTH', 'OTHER']
+          && request.resource.data.isFinished is bool
+          && request.resource.data.createdDayKey is int
+          && validOptionalInt(request.resource.data, 'completedDayKey')
+          && validOptionalInt(request.resource.data, 'archivedAtEpochMillis')
+          && validOptionalInt(request.resource.data, 'deletedAtEpochMillis');
+        allow delete: if owns(userId);
+      }
+
+      match /goals/{goalId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && validCommon(request.resource.data)
+          && validText(request.resource.data.title, 300)
+          && request.resource.data.type in ['ONE_TIME', 'PERIODIC']
+          && request.resource.data.createdDayKey is int
+          && validOptionalInt(request.resource.data, 'achievedDayKey')
+          && validOptionalInt(request.resource.data, 'startDayKey')
+          && validOptionalInt(request.resource.data, 'endDayKey')
+          && validOptionalInt(request.resource.data, 'archivedAtEpochMillis')
+          && validOptionalInt(request.resource.data, 'deletedAtEpochMillis');
+        allow delete: if owns(userId);
+      }
+
+      match /habits/{habitId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && validCommon(request.resource.data)
+          && validText(request.resource.data.name, 300)
+          && request.resource.data.colorHue is number
+          && request.resource.data.colorHue >= 0
+          && request.resource.data.colorHue <= 360
+          && request.resource.data.scheduledWeekdays is list
+          && request.resource.data.scheduledWeekdays.size() <= 7
+          && validOptionalInt(request.resource.data, 'activeStartDayKey')
+          && validOptionalInt(request.resource.data, 'activeEndDayKey')
+          && validOptionalInt(request.resource.data, 'deletedAtEpochMillis');
+        allow delete: if owns(userId);
+      }
+
+      match /habitCompletions/{completionId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && validCommon(request.resource.data)
+          && validText(request.resource.data.habitRemoteId, 100)
+          && request.resource.data.dayKey is int
+          && request.resource.data.weekday in [
+            'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY',
+            'FRIDAY', 'SATURDAY', 'SUNDAY'
+          ]
+          && validOptionalInt(request.resource.data, 'deletedAtEpochMillis');
+        allow delete: if owns(userId);
+      }
+
+      match /sleepRecords/{recordId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && validCommon(request.resource.data)
+          && request.resource.data.activatedAtEpochMillis is int
+          && request.resource.data.sleepStartsAtEpochMillis is int
+          && request.resource.data.endedAtEpochMillis is int
+          && validOptionalInt(request.resource.data, 'deletedAtEpochMillis');
+        allow delete: if owns(userId);
+      }
+
+      match /moneyPeriods/{periodId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && validCommon(request.resource.data)
+          && validOptionalInt(request.resource.data, 'startDayKey')
+          && validOptionalInt(request.resource.data, 'endDayKey')
+          && validOptionalInt(request.resource.data, 'deletedAtEpochMillis');
+        allow delete: if owns(userId);
+      }
+
+      match /spendings/{spendingId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && validCommon(request.resource.data)
+          && validText(request.resource.data.periodRemoteId, 100)
+          && validText(request.resource.data.title, 300)
+          && request.resource.data.amountMinor is int
+          && request.resource.data.amountMinor > 0
+          && request.resource.data.createdAtEpochMillis is int
+          && validOptionalInt(request.resource.data, 'deletedAtEpochMillis');
+        allow delete: if owns(userId);
+      }
+
+      match /state/{stateId} {
+        allow read, create, update, delete: if owns(userId);
+      }
+
+      match /preferences/{preferenceId} {
+        allow read: if owns(userId);
+        allow create, update: if owns(userId)
+          && request.resource.data.schemaVersion is int
+          && request.resource.data.updatedAtEpochMillis is int
+          && request.resource.data.themeMode in ['system', 'light', 'dark'];
+        allow delete: if owns(userId);
+      }
+    }
+  }
+}

@@ -7,7 +7,10 @@ import com.nikac.guider.domain.auth.AuthIssue
 import com.nikac.guider.domain.auth.AuthRepository
 import com.nikac.guider.domain.auth.AuthUser
 import com.nikac.guider.domain.settings.AppPreferencesStore
+import com.nikac.guider.domain.settings.AppPreferences
 import com.nikac.guider.domain.settings.ThemeMode
+import com.nikac.guider.domain.sync.CloudSyncStatus
+import com.nikac.guider.domain.sync.UserDataSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +31,7 @@ data class AppSessionState(
     val isBusy: Boolean = false,
     val isSavingTheme: Boolean = false,
     val message: SessionMessage? = null,
+    val syncStatus: CloudSyncStatus = CloudSyncStatus.LOCAL_ONLY,
 ) {
     val hasAccess: Boolean get() = !isLoading && (isGuest || user != null)
 }
@@ -35,6 +39,7 @@ data class AppSessionState(
 class AppSessionViewModel(
     private val preferences: AppPreferencesStore,
     private val auth: AuthRepository,
+    private val userDataSync: UserDataSync,
 ) : ViewModel() {
     val googleWebClientId: String get() = auth.webClientId
     private val mutableState = MutableStateFlow(AppSessionState())
@@ -42,8 +47,9 @@ class AppSessionViewModel(
 
     init {
         viewModelScope.launch {
+            var saved = AppPreferences()
             try {
-                val saved = preferences.read()
+                saved = preferences.read()
                 mutableState.update { it.copy(themeMode = saved.themeMode, isGuest = saved.continueAsGuest) }
             } catch (error: CancellationException) {
                 throw error
@@ -52,10 +58,16 @@ class AppSessionViewModel(
             }
             try {
                 auth.initialize()
+                val authenticatedUser = auth.user.value
+                if (authenticatedUser != null) {
+                    userDataSync.activateAccount(authenticatedUser.uid, migrateGuestData = false)
+                } else {
+                    userDataSync.activateGuest()
+                }
                 mutableState.update {
                     it.copy(
-                        user = auth.user.value,
-                        isGuest = it.isGuest && auth.user.value == null,
+                        user = authenticatedUser,
+                        isGuest = saved.continueAsGuest && authenticatedUser == null,
                         canSignIn = auth.isConfigured,
                     )
                 }
@@ -65,8 +77,29 @@ class AppSessionViewModel(
                 mutableState.update { it.copy(message = SessionMessage.CONFIGURATION) }
             }
             mutableState.update { it.copy(isLoading = false) }
+            var activeUid = auth.user.value?.uid
             auth.user.collect { user ->
+                val nextUid = user?.uid
+                if (nextUid != activeUid) {
+                    if (nextUid == null) {
+                        userDataSync.activateGuest()
+                    } else {
+                        userDataSync.activateAccount(nextUid, migrateGuestData = false)
+                    }
+                    activeUid = nextUid
+                }
                 mutableState.update { it.copy(user = user, isGuest = it.isGuest && user == null) }
+            }
+        }
+        viewModelScope.launch {
+            userDataSync.status.collect { syncStatus ->
+                mutableState.update { it.copy(syncStatus = syncStatus) }
+            }
+        }
+        viewModelScope.launch {
+            userDataSync.restoredThemes.collect { restoredTheme ->
+                runCatching { preferences.setThemeMode(restoredTheme) }
+                mutableState.update { it.copy(themeMode = restoredTheme) }
             }
         }
     }
@@ -76,6 +109,7 @@ class AppSessionViewModel(
         mutableState.update { it.copy(isBusy = true, message = null) }
         viewModelScope.launch {
             try {
+                userDataSync.activateGuest()
                 preferences.setContinueAsGuest(true)
                 mutableState.update { it.copy(isGuest = true) }
             } catch (error: CancellationException) {
@@ -95,10 +129,14 @@ class AppSessionViewModel(
             return
         }
         mutableState.update { it.copy(isBusy = true, message = null) }
+        val migrateGuestData = state.value.isGuest
         viewModelScope.launch {
             try {
                 auth.signInWithGoogle(requestGoogleIdToken())
-                mutableState.update { it.copy(user = auth.user.value, isGuest = false) }
+                val authenticatedUser = requireNotNull(auth.user.value)
+                userDataSync.activateAccount(authenticatedUser.uid, migrateGuestData)
+                if (migrateGuestData) userDataSync.saveTheme(state.value.themeMode)
+                mutableState.update { it.copy(user = authenticatedUser, isGuest = false) }
                 try {
                     preferences.setContinueAsGuest(false)
                 } catch (error: CancellationException) {
@@ -139,6 +177,9 @@ class AppSessionViewModel(
             } catch (_: Exception) {
                 mutableState.update { it.copy(message = SessionMessage.SIGN_OUT_CLEANUP) }
             } finally {
+                if (auth.user.value == null) {
+                    runCatching { userDataSync.activateGuest() }
+                }
                 mutableState.update { it.copy(user = auth.user.value, isBusy = false) }
             }
         }
@@ -151,6 +192,7 @@ class AppSessionViewModel(
         viewModelScope.launch {
             try {
                 preferences.setThemeMode(mode)
+                userDataSync.saveTheme(mode)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -159,6 +201,11 @@ class AppSessionViewModel(
                 mutableState.update { it.copy(isSavingTheme = false) }
             }
         }
+    }
+
+    fun syncNow() {
+        if (state.value.user == null || state.value.syncStatus == CloudSyncStatus.SYNCING) return
+        viewModelScope.launch { userDataSync.syncNow() }
     }
 
     override fun onCleared() {

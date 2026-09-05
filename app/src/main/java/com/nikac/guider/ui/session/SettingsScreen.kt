@@ -40,6 +40,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import com.nikac.guider.R
 import com.nikac.guider.domain.settings.ThemeMode
+import com.nikac.guider.domain.sync.CloudSyncStatus
 
 @Composable
 fun SettingsScreen(
@@ -49,6 +50,7 @@ fun SettingsScreen(
     onThemeSelected: (ThemeMode) -> Unit,
     onGoogleSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    onSyncNow: () -> Unit,
 ) {
     // A full-screen dialog keeps the pager and each tab's scroll position alive underneath.
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(
@@ -110,8 +112,18 @@ fun SettingsScreen(
                         }
                     }
                     Text(stringResource(R.string.account_title), style = MaterialTheme.typography.titleLarge)
-                    AccountSection(state, onGoogleSignIn, onSignOut)
-                    LocalProgressCard(stringResource(R.string.local_progress_notice), stringResource(R.string.local_progress_detail))
+                    AccountSection(state, onGoogleSignIn, onSignOut, onSyncNow)
+                    if (state.user == null) {
+                        LocalProgressCard(
+                            stringResource(R.string.local_progress_notice),
+                            stringResource(R.string.local_progress_detail),
+                        )
+                    } else {
+                        LocalProgressCard(
+                            stringResource(R.string.cloud_progress_notice),
+                            stringResource(state.syncStatus.labelResource()),
+                        )
+                    }
                     SessionFeedback(state.message)
                 }
             }
@@ -119,8 +131,21 @@ fun SettingsScreen(
     }
 }
 
+private fun CloudSyncStatus.labelResource(): Int = when (this) {
+    CloudSyncStatus.LOCAL_ONLY -> R.string.sync_local_only
+    CloudSyncStatus.SYNCING -> R.string.sync_syncing
+    CloudSyncStatus.SYNCED -> R.string.sync_synced
+    CloudSyncStatus.OFFLINE -> R.string.sync_offline
+    CloudSyncStatus.FAILED -> R.string.sync_failed
+}
+
 @Composable
-private fun AccountSection(state: AppSessionState, onGoogleSignIn: () -> Unit, onSignOut: () -> Unit) {
+private fun AccountSection(
+    state: AppSessionState,
+    onGoogleSignIn: () -> Unit,
+    onSignOut: () -> Unit,
+    onSyncNow: () -> Unit,
+) {
     var confirmSignOut by rememberSaveable { mutableStateOf(false) }
     val user = state.user
     Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -132,6 +157,11 @@ private fun AccountSection(state: AppSessionState, onGoogleSignIn: () -> Unit, o
                 user.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 Text(stringResource(R.string.account_signed_in), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary)
+                OutlinedButton(
+                    onClick = onSyncNow,
+                    enabled = state.syncStatus != CloudSyncStatus.SYNCING,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.sync_now)) }
                 OutlinedButton(onClick = { confirmSignOut = true }, enabled = !state.isBusy,
                     modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sign_out)) }
             } else {

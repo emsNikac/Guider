@@ -8,11 +8,15 @@ import com.nikac.guider.domain.auth.AuthUser
 import com.nikac.guider.domain.settings.AppPreferences
 import com.nikac.guider.domain.settings.AppPreferencesStore
 import com.nikac.guider.domain.settings.ThemeMode
+import com.nikac.guider.domain.sync.CloudSyncStatus
+import com.nikac.guider.domain.sync.DataOwner
+import com.nikac.guider.domain.sync.UserDataSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -31,11 +35,12 @@ class AppSessionViewModelTest {
     private val store = ViewModelStore()
     private val preferences = FakePreferences()
     private val auth = FakeAuth()
+    private val sync = FakeUserDataSync()
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { store.clear(); Dispatchers.resetMain() }
 
-    private fun model(): AppSessionViewModel = AppSessionViewModel(preferences, auth).also {
+    private fun model(): AppSessionViewModel = AppSessionViewModel(preferences, auth, sync).also {
         store.put("session", it)
     }
 
@@ -253,6 +258,24 @@ class AppSessionViewModelTest {
             signOutFailure?.let { throw it }
         }
         override fun close() { closed = true }
+    }
+
+    private class FakeUserDataSync : UserDataSync {
+        override val owner = MutableStateFlow(DataOwner.Guest)
+        override val status = MutableStateFlow(CloudSyncStatus.LOCAL_ONLY)
+        override val restoredThemes = MutableSharedFlow<ThemeMode>()
+        override suspend fun activateGuest() {
+            owner.value = DataOwner.Guest
+            status.value = CloudSyncStatus.LOCAL_ONLY
+        }
+        override suspend fun activateAccount(firebaseUid: String, migrateGuestData: Boolean) {
+            owner.value = DataOwner.account(firebaseUid)
+            status.value = CloudSyncStatus.SYNCED
+        }
+        override fun requestUpload() = Unit
+        override suspend fun syncNow() = Unit
+        override fun saveTheme(mode: ThemeMode) = Unit
+        override fun close() = Unit
     }
 
     private companion object {

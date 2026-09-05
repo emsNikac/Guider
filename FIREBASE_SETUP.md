@@ -1,79 +1,82 @@
-# Google login and theme settings
+# Firebase login and cloud progress
 
-This change adds Firebase Authentication only. There is no Firestore/Realtime Database
-dependency, cloud progress upload, synchronization, or per-account progress partitioning.
-The existing Room database is unchanged. Signing in or out does not erase local progress;
-all accounts and guest mode still see the same data on a device. The UI states this explicitly.
+Guider works offline from its Room database. Guest data stays only in Room and is never
+uploaded. Data owned by a Google/Firebase account is synchronized with Cloud Firestore and
+can be restored after reinstalling the app or signing in on another device.
 
-## Configure Google sign-in
+## Firebase console setup
 
-The application ID is now `com.nikac.guider`. If you already registered the previous
-package in Firebase, add a new Android app with this package in the same Firebase project
-and use that app's configuration below. Recheck the signing fingerprints and Google OAuth
-configuration. Changing the Android package also creates a separate installed app; local
-progress and login preferences from the previous package are not migrated automatically.
+1. Register the Android application `com.nikac.guider` in the Firebase project.
+2. In Authentication → Sign-in method, enable Google and select a support email.
+3. Add SHA-1 and SHA-256 fingerprints for debug, release, and Play App Signing certificates.
+   `./gradlew :app:signingReport` prints the locally configured fingerprints.
+4. Download the current `google-services.json` and place it at
+   `app/google-services.json`. No Firebase values need to be copied into Kotlin code.
+5. In Databases & Storage → Firestore, create the default Firestore Standard database.
+6. Deploy the checked-in owner-only rules:
 
-1. Create/select your Firebase project and register an Android app with package
-   `com.nikac.guider` (this is the current application ID).
-2. In Authentication → Sign-in method, enable **Google** and choose a support email.
-3. Add your build's SHA-1 and SHA-256 certificate fingerprints in Project settings →
-   Your apps. `./gradlew :app:signingReport` prints fingerprints for configured signing
-   variants. For distribution, also register the actual release/Play App Signing
-   certificate, not just your debug or upload certificate.
-4. Download the updated `google-services.json` from Firebase after enabling Google and
-   copy it to `app/google-services.json`. The matching client in the file must have
-   `client_info.android_client_info.package_name` equal to `com.nikac.guider`.
-5. Rebuild and run on a device with Google Play services. Choose **Continue with Google**.
-   Verify the account appears under Firebase Authentication → Users.
+   ```shell
+   firebase deploy --only firestore:rules
+   ```
 
-The Google Services Gradle plugin reads the API key, Firebase app ID, project ID, and Web
-OAuth client ID from that one file. There are no configuration values to copy manually.
-If `default_web_client_id` is missing after Google sign-in was enabled, download a fresh
-JSON file from Firebase. You can confirm the Web application OAuth client in the Google
-Cloud console's Credentials page. If your OAuth consent screen is in testing, add the
-Google accounts you want to use as test users.
+7. Enable App Check for the Android application before production release.
 
-A database URL is not needed for authentication. Do not add a service-account JSON file,
-private key, OAuth client secret, or Admin SDK credentials to this Android app. Firebase's
-client configuration is embedded in the APK and is not a server-side secret.
+Never add a service-account key, OAuth client secret, or Admin SDK credential to the Android
+application. The client configuration in `google-services.json` is expected to be packaged
+with the APK; Firestore Security Rules are the data-access boundary.
 
-Firebase BoM 34.4.0 (Auth 24.0.1) is pinned for this project's Kotlin 2.1 toolchain.
-Auth 24.2.0 from BoM 34.18.0 requires Kotlin 2.3 metadata and does not compile with
-the current compiler. Upgrade Firebase alongside a separately tested Kotlin/KSP toolchain
-update; do not bypass Kotlin's metadata compatibility checks.
+## Data behavior
 
-Without `app/google-services.json`, the project still builds and Google login stays disabled
-with an explanation; guest mode, local progress, and theme settings remain usable. When the
-file is present, the plugin validates that it contains a client for this package. A successful
-build still cannot verify that the Google provider and signing certificate are configured;
-that needs a real Google login after setup.
+- Guests use the local owner namespace. Uninstalling Guider or clearing its app data deletes
+  guest progress permanently.
+- Android Auto Backup and device-transfer backup are disabled intentionally, preventing guest
+  progress and authentication state from returning after reinstall.
+- When a guest signs in, guest tasks, goals, habits, completions, sleep history, the current
+  sleep session, money periods, and spendings are moved into that Firebase account.
+- Signed-in changes are written to Room first and then uploaded. Pending changes remain marked
+  locally until Firestore acknowledges the write.
+- Firestore listeners restore changes from other devices. A network-constrained WorkManager
+  job retries synchronization periodically, and Settings also provides **Sync now**.
+- Task and one-time-goal cleanup archives records instead of deleting their history. Restarting
+  money tracking closes the current period and creates another instead of erasing spendings.
+- Each account uses a separate local owner ID. Signing out hides account data without deleting
+  its cloud backup; guest data and other accounts cannot query it.
+- Theme mode is saved locally and synchronized for signed-in users. Transient UI state,
+  notification permissions, Firebase tokens, and WorkManager internals are not synchronized.
 
-## Behavior and verification
+## Firestore layout
 
-- First launch presents the welcome screen. Continuing as guest is remembered on this device.
-- Firebase restores an existing signed-in user across restarts. Firebase manages its tokens;
-  the app does not log or copy them into its own preferences.
-- Settings is available from the top-right of Daily tasks. Guests can sign in there later.
-- Sign out returns to the welcome screen and clears Firebase and Credential Manager session
-  state without changing local progress. Dismissing the Google picker does not sign in or
-  disturb an existing guest session. Duplicate sign-in taps are ignored while busy.
-- System / Light / Dark is saved locally and applies immediately, including system-bar icons.
-  Follow-device mode continues to react to system appearance changes.
-- No Firebase anonymous accounts are created for guests. Signing in creates only the normal
-  Firebase Authentication user record; it does not create a progress document.
+```text
+users/{firebaseUid}/dailyTasks/{remoteId}
+users/{firebaseUid}/goals/{remoteId}
+users/{firebaseUid}/habits/{remoteId}
+users/{firebaseUid}/habitCompletions/{remoteId}
+users/{firebaseUid}/sleepRecords/{remoteId}
+users/{firebaseUid}/moneyPeriods/{remoteId}
+users/{firebaseUid}/spendings/{remoteId}
+users/{firebaseUid}/state/activeSleep
+users/{firebaseUid}/state/money
+users/{firebaseUid}/state/sync
+users/{firebaseUid}/preferences/app
+```
 
-After adding configuration, check: new Google account, returning account, cancel picker,
-offline failure/retry, guest-to-Google upgrade, sign-out/relaunch, switching accounts,
-theme persistence/relaunch, system theme changes, and landscape/large-font layout on Android 12.
-Check the new screens on a physical device before shipping. Existing navigation benchmarks
-can dismiss the new welcome screen using guest mode without needing a Google account.
+Cloud documents use stable UUIDs, update timestamps, archive markers, and deletion tombstones.
+Room retains its numeric IDs for fast joins; linked cloud records use UUIDs so separately
+created data cannot collide across devices.
 
-Host verification: `./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`.
-After verification, `./gradlew clean` removes generated build outputs.
+## Verification
 
-## Official references
+Run:
 
-- [Firebase Google authentication on Android](https://firebase.google.com/docs/auth/android/google-signin)
-- [Android Credential Manager: Sign in with Google](https://developer.android.com/identity/sign-in/credential-manager-siwg-implementation)
-- [Google Services Gradle plugin and JSON file](https://firebase.google.com/docs/android/google-services-plugin-and-file)
-- [Google sign-in branding](https://developers.google.com/identity/branding-guidelines)
+```shell
+./gradlew :app:testDebugUnitTest :app:lintDebug
+./gradlew :app:connectedDebugAndroidTest
+```
+
+Before release, verify guest-only use, guest-to-account migration, offline edits, two-device
+updates, record deletion, money restart history, sign-out/account switching, manual sync,
+reinstall-and-restore, and rejected cross-user Firestore access. The Local Emulator Suite is
+recommended for automated Firestore rules and multi-client synchronization tests.
+
+Firebase BoM 34.4.0 remains pinned for the project's Kotlin 2.1 toolchain. Upgrade Firebase
+alongside a tested Kotlin/KSP update rather than bypassing Kotlin metadata compatibility checks.
