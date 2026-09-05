@@ -72,7 +72,7 @@ class RoomHabitRepository private constructor(
             linkedGoalId = linkedGoalId,
             activeStartDayKey = activeStartDayKey,
             activeEndDayKey = activeEndDayKey,
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         val id = dao.insertHabit(entity)
         val weekdays = scheduledWeekdays.ifEmpty { HabitWeekday.entries.toSet() }
@@ -104,7 +104,7 @@ class RoomHabitRepository private constructor(
                     habitId = habitId,
                     dayKey = dayKey,
                     updatedAtEpochMillis = System.currentTimeMillis(),
-                    syncPending = currentOwner.usesCloud,
+                    syncPending = true,
                 )
             } else {
                 dao.upsertCompletion(
@@ -114,7 +114,7 @@ class RoomHabitRepository private constructor(
                         weekday = weekday.name,
                         remoteId = state.completionRemoteId ?: com.nikac.guider.data.database.newRemoteId(),
                         deletedAtEpochMillis = null,
-                        syncPending = currentOwner.usesCloud,
+                        syncPending = true,
                     ),
                 )
             }
@@ -131,7 +131,7 @@ class RoomHabitRepository private constructor(
                 ownerId = currentOwner.localId,
                 habitId = habitId,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
         }
         notifyCloud(currentOwner)
@@ -151,7 +151,7 @@ class RoomHabitRepository private constructor(
                 ownerId = currentOwner.localId,
                 goalId = goalId,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
         }
         notifyCloud(currentOwner)
@@ -165,7 +165,7 @@ class RoomHabitRepository private constructor(
             startDayKey = startDayKey,
             endDayKey = endDayKey,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         notifyCloud(currentOwner)
     }

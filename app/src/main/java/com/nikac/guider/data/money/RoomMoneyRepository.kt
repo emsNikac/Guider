@@ -48,13 +48,13 @@ class RoomMoneyRepository private constructor(
                     startDayKey = dayKey,
                     endDayKey = null,
                     updatedAtEpochMillis = now,
-                    syncPending = currentOwner.usesCloud,
+                    syncPending = true,
                 ),
             )
             state = state.copy(
                 periodStartDayKey = dayKey,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             dao.setState(state)
         }
@@ -64,7 +64,7 @@ class RoomMoneyRepository private constructor(
             title = title.trim(),
             amountMinor = amountMinor,
             createdAtEpochMillis = createdAtEpochMillis,
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         entity.copy(id = dao.insertSpending(entity)).toModel()
     }.also { notifyCloud(owner.value) }
@@ -79,7 +79,7 @@ class RoomMoneyRepository private constructor(
             title = title.trim(),
             amountMinor = amountMinor,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         notifyCloud(currentOwner)
     }
@@ -90,7 +90,7 @@ class RoomMoneyRepository private constructor(
             ownerId = currentOwner.localId,
             spendingId = spendingId,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         notifyCloud(currentOwner)
     }
@@ -105,14 +105,14 @@ class RoomMoneyRepository private constructor(
                 remoteId = previous.currentPeriodRemoteId,
                 endDayKey = dayKey,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             val nextPeriod = MoneyPeriodEntity(
                 ownerId = currentOwner.localId,
                 startDayKey = dayKey,
                 endDayKey = null,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             dao.upsertPeriod(nextPeriod)
             dao.setState(
@@ -121,7 +121,7 @@ class RoomMoneyRepository private constructor(
                     currentPeriodRemoteId = nextPeriod.remoteId,
                     periodStartDayKey = dayKey,
                     updatedAtEpochMillis = now,
-                    syncPending = currentOwner.usesCloud,
+                    syncPending = true,
                 ),
             )
         }
@@ -134,14 +134,14 @@ class RoomMoneyRepository private constructor(
             ownerId = currentOwner.localId,
             startDayKey = null,
             endDayKey = null,
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         dao.upsertPeriod(period)
         return MoneyStateEntity(
             ownerId = currentOwner.localId,
             currentPeriodRemoteId = period.remoteId,
             periodStartDayKey = null,
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         ).also { dao.setState(it) }
     }
 

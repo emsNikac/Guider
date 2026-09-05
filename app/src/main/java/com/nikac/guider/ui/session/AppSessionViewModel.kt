@@ -60,7 +60,7 @@ class AppSessionViewModel(
                 auth.initialize()
                 val authenticatedUser = auth.user.value
                 if (authenticatedUser != null) {
-                    userDataSync.activateAccount(authenticatedUser.uid, migrateGuestData = false)
+                    userDataSync.activateAccount(authenticatedUser.uid)
                 } else {
                     userDataSync.activateGuest()
                 }
@@ -80,15 +80,32 @@ class AppSessionViewModel(
             var activeUid = auth.user.value?.uid
             auth.user.collect { user ->
                 val nextUid = user?.uid
-                if (nextUid != activeUid) {
+                val accountChanged = nextUid != activeUid
+                if (accountChanged) {
                     if (nextUid == null) {
                         userDataSync.activateGuest()
+                        try {
+                            preferences.setContinueAsGuest(true)
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            mutableState.update { it.copy(message = SessionMessage.PREFERENCES_FAILED) }
+                        }
                     } else {
-                        userDataSync.activateAccount(nextUid, migrateGuestData = false)
+                        userDataSync.activateAccount(nextUid)
                     }
                     activeUid = nextUid
                 }
-                mutableState.update { it.copy(user = user, isGuest = it.isGuest && user == null) }
+                mutableState.update {
+                    it.copy(
+                        user = user,
+                        isGuest = when {
+                            user != null -> false
+                            accountChanged -> true
+                            else -> it.isGuest
+                        },
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -129,13 +146,13 @@ class AppSessionViewModel(
             return
         }
         mutableState.update { it.copy(isBusy = true, message = null) }
-        val migrateGuestData = state.value.isGuest
+        val wasLocalOnly = state.value.isGuest
         viewModelScope.launch {
             try {
                 auth.signInWithGoogle(requestGoogleIdToken())
                 val authenticatedUser = requireNotNull(auth.user.value)
-                userDataSync.activateAccount(authenticatedUser.uid, migrateGuestData)
-                if (migrateGuestData) userDataSync.saveTheme(state.value.themeMode)
+                userDataSync.activateAccount(authenticatedUser.uid)
+                if (wasLocalOnly) userDataSync.saveTheme(state.value.themeMode)
                 mutableState.update { it.copy(user = authenticatedUser, isGuest = false) }
                 try {
                     preferences.setContinueAsGuest(false)
@@ -159,16 +176,17 @@ class AppSessionViewModel(
 
     fun signOut() {
         if (state.value.isBusy || state.value.user == null) return
-        mutableState.update { it.copy(isBusy = true, message = null, isGuest = false) }
+        mutableState.update { it.copy(isBusy = true, message = null, isGuest = true) }
         viewModelScope.launch {
             try {
                 try {
-                    preferences.setContinueAsGuest(false)
+                    preferences.setContinueAsGuest(true)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Exception) {
                     mutableState.update { it.copy(message = SessionMessage.PREFERENCES_FAILED) }
                 }
+                userDataSync.activateGuest()
                 auth.signOut()
             } catch (error: CancellationException) {
                 throw error
@@ -180,7 +198,13 @@ class AppSessionViewModel(
                 if (auth.user.value == null) {
                     runCatching { userDataSync.activateGuest() }
                 }
-                mutableState.update { it.copy(user = auth.user.value, isBusy = false) }
+                mutableState.update {
+                    it.copy(
+                        user = auth.user.value,
+                        isGuest = auth.user.value == null,
+                        isBusy = false,
+                    )
+                }
             }
         }
     }

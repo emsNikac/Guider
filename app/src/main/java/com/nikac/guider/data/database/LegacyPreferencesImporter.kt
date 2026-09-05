@@ -19,9 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
-/** Imports the pre-Room storage exactly once, including first-run starter content. */
+/** Imports real pre-Room user data exactly once. */
 class LegacyPreferencesImporter(private val context: Context) {
     suspend fun importIfNeeded(database: GuiderDatabase) {
+        removePreviouslySeededContentIfNeeded(database)
         if (database.appMetadataDao().getValue(IMPORT_KEY) != null) return
 
         val snapshot = withContext(Dispatchers.IO) { readSnapshot() }
@@ -115,7 +116,7 @@ class LegacyPreferencesImporter(private val context: Context) {
         context.getSharedPreferences(name, Context.MODE_PRIVATE)
 
     private fun readTasks(preferences: SharedPreferences): List<DailyTask> {
-        val encoded = preferences.getString(KEY_TASKS, null) ?: return starterTasks()
+        val encoded = preferences.getString(KEY_TASKS, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(encoded)
             buildList {
@@ -134,7 +135,7 @@ class LegacyPreferencesImporter(private val context: Context) {
                     )
                 }
             }
-        }.getOrElse { starterTasks() }
+        }.getOrElse { emptyList() }
     }
 
     private fun readGoals(preferences: SharedPreferences): List<Goal> {
@@ -178,7 +179,7 @@ class LegacyPreferencesImporter(private val context: Context) {
     }
 
     private fun readHabits(preferences: SharedPreferences): List<Habit> {
-        val encoded = preferences.getString(KEY_HABITS, null) ?: return starterHabits
+        val encoded = preferences.getString(KEY_HABITS, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(encoded)
             buildList {
@@ -206,7 +207,7 @@ class LegacyPreferencesImporter(private val context: Context) {
                     )
                 }
             }
-        }.getOrElse { starterHabits }
+        }.getOrElse { emptyList() }
     }
 
     private fun readActiveSleepSession(preferences: SharedPreferences): ActiveSleepSession? {
@@ -276,16 +277,56 @@ class LegacyPreferencesImporter(private val context: Context) {
         }
     }
 
-    private fun starterTasks(): List<DailyTask> {
-        val today = DayKeys.today()
-        return listOf(
-            DailyTask(1L, TaskCategory.HEALTH, "Drink water", false, today),
-            DailyTask(2L, TaskCategory.HEALTH, "Take a 30 minute walk", false, today),
-            DailyTask(3L, TaskCategory.WORK, "Write the project outline", false, today),
-            DailyTask(4L, TaskCategory.MENTAL_HEALTH, "Meditate for 10 minutes", false, today),
-            DailyTask(5L, TaskCategory.MENTAL_HEALTH, "Read before bed", false, today),
-            DailyTask(6L, TaskCategory.OTHER, "Call family", false, today),
-        )
+    private suspend fun removePreviouslySeededContentIfNeeded(database: GuiderDatabase) {
+        val metadata = database.appMetadataDao()
+        if (metadata.getValue(STARTER_CONTENT_CLEANUP_KEY) != null) return
+
+        val tasksWereSeeded = !containsValidArray(preferences(TASK_PREFERENCES), KEY_TASKS)
+        val habitsWereSeeded = !containsValidArray(preferences(HABIT_PREFERENCES), KEY_HABITS)
+        database.withTransaction {
+            val sql = database.openHelper.writableDatabase
+            val now = System.currentTimeMillis()
+            if (tasksWereSeeded) {
+                sql.execSQL(
+                    """UPDATE daily_tasks
+                       SET deletedAtEpochMillis = COALESCE(deletedAtEpochMillis, ?),
+                           updatedAtEpochMillis = ?, syncPending = 1
+                       WHERE (id = 1 AND category = 'HEALTH' AND title = 'Drink water')
+                          OR (id = 2 AND category = 'HEALTH' AND title = 'Take a 30 minute walk')
+                          OR (id = 3 AND category = 'WORK' AND title = 'Write the project outline')
+                          OR (id = 4 AND category = 'MENTAL_HEALTH' AND title = 'Meditate for 10 minutes')
+                          OR (id = 5 AND category = 'MENTAL_HEALTH' AND title = 'Read before bed')
+                          OR (id = 6 AND category = 'OTHER' AND title = 'Call family')""",
+                    arrayOf(now, now),
+                )
+            }
+            if (habitsWereSeeded) {
+                val starterHabitFilter =
+                    """(id = 1 AND name = 'Drink water' AND colorHue = 210.0)
+                       OR (id = 2 AND name = 'Move for 30 min' AND colorHue = 142.0)
+                       OR (id = 3 AND name = 'Read 10 pages' AND colorHue = 24.0)"""
+                sql.execSQL(
+                    """UPDATE habit_completions
+                       SET deletedAtEpochMillis = COALESCE(deletedAtEpochMillis, ?),
+                           updatedAtEpochMillis = ?, syncPending = 1
+                       WHERE habitId IN (SELECT id FROM habits WHERE $starterHabitFilter)""",
+                    arrayOf(now, now),
+                )
+                sql.execSQL(
+                    """UPDATE habits
+                       SET deletedAtEpochMillis = COALESCE(deletedAtEpochMillis, ?),
+                           updatedAtEpochMillis = ?, syncPending = 1
+                       WHERE $starterHabitFilter""",
+                    arrayOf(now, now),
+                )
+            }
+            metadata.set(AppMetadataEntity(STARTER_CONTENT_CLEANUP_KEY, "1"))
+        }
+    }
+
+    private fun containsValidArray(preferences: SharedPreferences, key: String): Boolean {
+        if (!preferences.contains(key)) return false
+        return runCatching { JSONArray(requireNotNull(preferences.getString(key, null))) }.isSuccess
     }
 
     private data class LegacySnapshot(
@@ -299,6 +340,7 @@ class LegacyPreferencesImporter(private val context: Context) {
 
     private companion object {
         const val IMPORT_KEY = "legacy_shared_preferences_imported"
+        const val STARTER_CONTENT_CLEANUP_KEY = "starter_content_removed"
         const val DEFAULT_GOAL_PERIOD_DAYS = 14
 
         const val TASK_PREFERENCES = "daily_task_tracking"
@@ -315,11 +357,6 @@ class LegacyPreferencesImporter(private val context: Context) {
         const val KEY_SPENDINGS = "spendings"
         const val KEY_PERIOD_START = "periodStart"
 
-        val starterHabits = listOf(
-            Habit(id = 1L, name = "Drink water", colorHue = 210f),
-            Habit(id = 2L, name = "Move for 30 min", colorHue = 142f),
-            Habit(id = 3L, name = "Read 10 pages", colorHue = 24f),
-        )
     }
 }
 

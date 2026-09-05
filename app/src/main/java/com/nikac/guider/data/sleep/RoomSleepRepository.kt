@@ -47,7 +47,7 @@ class RoomSleepRepository private constructor(
                     activatedAtEpochMillis = session.activatedAtEpochMillis,
                     sleepStartsAtEpochMillis = session.sleepStartsAtEpochMillis,
                     deletedAtEpochMillis = null,
-                    syncPending = currentOwner.usesCloud,
+                    syncPending = true,
                 ),
             )
             session
@@ -68,7 +68,7 @@ class RoomSleepRepository private constructor(
                 sleepStartsAtEpochMillis = session.sleepStartsAtEpochMillis,
                 endedAtEpochMillis = endedAtEpochMillis,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             val record = entity.copy(id = dao.insertRecord(entity)).toModel()
             record

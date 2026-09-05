@@ -19,11 +19,11 @@
     <string name="theme_dark">Dark</string>
     <string name="theme_dark_detail">Always use a dark appearance</string>
     <string name="account_title">Account</string>
-    <string name="guest_account">Guest mode</string>
+    <string name="guest_account">Local-only mode</string>
     <string name="google_account">Google account</string>
     <string name="account_signed_in">Connected with Google</string>
     <string name="local_progress_notice">Progress stays on this device</string>
-    <string name="local_progress_detail">Guest progress is never uploaded. Uninstalling Guider or clearing its data permanently deletes this progress.</string>
+    <string name="local_progress_detail">Progress stays on this device while you are signed out. Signing in enables cloud backup; uninstalling before then permanently deletes local-only progress.</string>
     <string name="cloud_progress_notice">Cloud backup</string>
     <string name="sync_local_only">Local only</string>
     <string name="sync_syncing">Syncing…</string>
@@ -33,7 +33,7 @@
     <string name="sync_now">Sync now</string>
     <string name="sign_out">Sign out</string>
     <string name="sign_out_title">Sign out of Guider?</string>
-    <string name="sign_out_detail">You will return to the welcome screen. Your account progress remains backed up and will be restored the next time you sign in.</string>
+    <string name="sign_out_detail">Cloud synchronization will be disconnected. Your current progress will stay in the app and Guider will continue in local-only mode.</string>
     <string name="cancel_action">Cancel</string>
     <string name="auth_error_configuration">Google sign-in needs Firebase configuration. Add app/google-services.json and check FIREBASE_SETUP.md. Guest mode is still available.</string>
     <string name="auth_error_network">Could not connect. Check your internet connection and try again.</string>

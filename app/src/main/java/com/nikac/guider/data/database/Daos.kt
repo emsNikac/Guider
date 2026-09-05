@@ -477,38 +477,37 @@ interface MoneyDao {
 @Dao
 interface OwnershipDao {
     @Query(
-        """SELECT
-           (SELECT COUNT(*) FROM goals WHERE ownerId = :ownerId) +
-           (SELECT COUNT(*) FROM daily_tasks WHERE ownerId = :ownerId) +
-           (SELECT COUNT(*) FROM habits WHERE ownerId = :ownerId) +
-           (SELECT COUNT(*) FROM sleep_records WHERE ownerId = :ownerId) +
-           (SELECT COUNT(*) FROM spendings WHERE ownerId = :ownerId)""",
+        """SELECT ownerId FROM goals WHERE deletedAtEpochMillis IS NULL
+           UNION SELECT ownerId FROM daily_tasks WHERE deletedAtEpochMillis IS NULL
+           UNION SELECT ownerId FROM habits WHERE deletedAtEpochMillis IS NULL
+           UNION SELECT ownerId FROM sleep_records WHERE deletedAtEpochMillis IS NULL
+           UNION SELECT ownerId FROM spendings WHERE deletedAtEpochMillis IS NULL
+           UNION SELECT ownerId FROM active_sleep_session WHERE deletedAtEpochMillis IS NULL
+           UNION SELECT ownerId FROM money_state WHERE periodStartDayKey IS NOT NULL""",
     )
-    suspend fun dataCount(ownerId: String): Long
+    suspend fun activeContentOwnerIds(): List<String>
 
-    @Query("DELETE FROM active_sleep_session WHERE ownerId = :ownerId")
-    suspend fun hardDeleteActiveSleep(ownerId: String)
-    @Query("DELETE FROM money_state WHERE ownerId = :ownerId")
-    suspend fun hardDeleteMoneyState(ownerId: String)
-
-    @Query("UPDATE goals SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveGoals(oldOwnerId: String, newOwnerId: String, now: Long)
-    @Query("UPDATE daily_tasks SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveTasks(oldOwnerId: String, newOwnerId: String, now: Long)
-    @Query("UPDATE habits SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveHabits(oldOwnerId: String, newOwnerId: String, now: Long)
-    @Query("UPDATE habit_completions SET syncPending = 1, updatedAtEpochMillis = :now WHERE habitId IN (SELECT id FROM habits WHERE ownerId = :ownerId)")
-    suspend fun markMovedCompletions(ownerId: String, now: Long)
-    @Query("UPDATE sleep_records SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveSleepRecords(oldOwnerId: String, newOwnerId: String, now: Long)
-    @Query("UPDATE active_sleep_session SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveActiveSleep(oldOwnerId: String, newOwnerId: String, now: Long)
-    @Query("UPDATE money_periods SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveMoneyPeriods(oldOwnerId: String, newOwnerId: String, now: Long)
-    @Query("UPDATE spendings SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveSpendings(oldOwnerId: String, newOwnerId: String, now: Long)
-    @Query("UPDATE money_state SET ownerId = :newOwnerId, syncPending = 1, updatedAtEpochMillis = :now WHERE ownerId = :oldOwnerId")
-    suspend fun moveMoneyState(oldOwnerId: String, newOwnerId: String, now: Long)
+    @Query("UPDATE goals SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markGoalsPending(ownerId: String)
+    @Query("UPDATE daily_tasks SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markTasksPending(ownerId: String)
+    @Query("UPDATE habits SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markHabitsPending(ownerId: String)
+    @Query(
+        """UPDATE habit_completions SET syncPending = 1
+           WHERE habitId IN (SELECT id FROM habits WHERE ownerId = :ownerId)""",
+    )
+    suspend fun markHabitCompletionsPending(ownerId: String)
+    @Query("UPDATE sleep_records SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markSleepRecordsPending(ownerId: String)
+    @Query("UPDATE active_sleep_session SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markActiveSleepPending(ownerId: String)
+    @Query("UPDATE money_periods SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markMoneyPeriodsPending(ownerId: String)
+    @Query("UPDATE spendings SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markSpendingsPending(ownerId: String)
+    @Query("UPDATE money_state SET syncPending = 1 WHERE ownerId = :ownerId")
+    suspend fun markMoneyStatePending(ownerId: String)
 }
 
 @Dao

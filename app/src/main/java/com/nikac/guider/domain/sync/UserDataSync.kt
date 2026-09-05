@@ -13,7 +13,11 @@ data class DataOwner(
 
     companion object {
         val Guest = DataOwner(localId = GUEST_OWNER_ID)
-        fun account(uid: String) = DataOwner(localId = "firebase:$uid", firebaseUid = uid)
+        fun local(localId: String) = DataOwner(localId = localId)
+        fun account(uid: String, localId: String = GUEST_OWNER_ID) =
+            DataOwner(localId = localId, firebaseUid = uid)
+
+        fun legacyAccountLocalId(uid: String) = "firebase:$uid"
     }
 }
 
@@ -31,7 +35,7 @@ interface UserDataSync {
     val restoredThemes: SharedFlow<ThemeMode>
 
     suspend fun activateGuest()
-    suspend fun activateAccount(firebaseUid: String, migrateGuestData: Boolean)
+    suspend fun activateAccount(firebaseUid: String)
     fun requestUpload()
     suspend fun syncNow()
     fun saveTheme(mode: ThemeMode)

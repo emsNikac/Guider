@@ -38,7 +38,7 @@ class RoomDailyTaskRepository private constructor(
             createdDayKey = com.nikac.guider.domain.time.DayKeys.today(),
             completedDayKey = null,
             linkedGoalId = linkedGoalId,
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         return entity.copy(id = dao.insert(entity)).toModel().also { notifyCloud(currentOwner) }
     }
@@ -51,7 +51,7 @@ class RoomDailyTaskRepository private constructor(
             finished = finished,
             dayKey = dayKey,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         notifyCloud(currentOwner)
     }
@@ -62,7 +62,7 @@ class RoomDailyTaskRepository private constructor(
             ownerId = currentOwner.localId,
             dayKey = dayKey,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         if (changed > 0) notifyCloud(currentOwner)
     }
@@ -73,7 +73,7 @@ class RoomDailyTaskRepository private constructor(
             ownerId = currentOwner.localId,
             goalId = goalId,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         notifyCloud(currentOwner)
     }
@@ -95,7 +95,7 @@ class RoomDailyTaskRepository private constructor(
                 ownerId = currentOwner.localId,
                 dayKey = com.nikac.guider.domain.time.DayKeys.today(),
                 updatedAtEpochMillis = System.currentTimeMillis(),
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             if (archived > 0 && currentOwner.usesCloud) onDataChanged()
             val tasks = owner.flatMapLatest { activeOwner ->

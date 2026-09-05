@@ -17,7 +17,7 @@ class CloudSyncWorker(
             ?: return Result.success()
         val sync = (applicationContext as GuiderApplication).userDataSync
         return runCatching {
-            sync.activateAccount(firebaseUid, migrateGuestData = false)
+            sync.activateAccount(firebaseUid)
             sync.syncNow()
             when (sync.status.value) {
                 CloudSyncStatus.SYNCED -> Result.success()

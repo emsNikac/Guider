@@ -66,15 +66,18 @@ class AppSessionViewModelTest {
         assertEquals(ThemeMode.DARK, model.state.value.themeMode)
     }
 
-    @Test fun `Firebase session restores and auth changes are observed`() = runTest {
+    @Test fun `Firebase sign out keeps local-only access`() = runTest {
         auth.user.value = testUser
         val model = model()
         advanceUntilIdle()
         assertEquals(testUser, model.state.value.user)
         assertTrue(model.state.value.hasAccess)
         auth.user.value = null
-        runCurrent()
-        assertFalse(model.state.value.hasAccess)
+        advanceUntilIdle()
+        assertTrue(model.state.value.hasAccess)
+        assertTrue(model.state.value.isGuest)
+        assertTrue(preferences.saved.continueAsGuest)
+        assertEquals(CloudSyncStatus.LOCAL_ONLY, model.state.value.syncStatus)
     }
 
     @Test fun `guest can upgrade to Google and guest flag is cleared`() = runTest {
@@ -156,8 +159,9 @@ class AppSessionViewModelTest {
         assertTrue(model.state.value.hasAccess)
     }
 
-    @Test fun `sign out returns to welcome even when provider cleanup fails`() = runTest {
+    @Test fun `sign out continues locally even when provider cleanup fails`() = runTest {
         auth.user.value = testUser
+        sync.owner.value = DataOwner.local("device-data")
         preferences.saved = AppPreferences(continueAsGuest = true)
         auth.signOutFailure = AuthFailure(AuthIssue.SIGN_OUT_CLEANUP)
         val model = model()
@@ -165,8 +169,11 @@ class AppSessionViewModelTest {
         model.signOut()
         advanceUntilIdle()
         assertNull(model.state.value.user)
-        assertFalse(model.state.value.hasAccess)
-        assertFalse(preferences.saved.continueAsGuest)
+        assertTrue(model.state.value.hasAccess)
+        assertTrue(model.state.value.isGuest)
+        assertTrue(preferences.saved.continueAsGuest)
+        assertEquals("device-data", sync.owner.value.localId)
+        assertNull(sync.owner.value.firebaseUid)
         assertEquals(SessionMessage.SIGN_OUT_CLEANUP, model.state.value.message)
     }
 
@@ -177,7 +184,8 @@ class AppSessionViewModelTest {
         preferences.failWrites = true
         model.signOut()
         advanceUntilIdle()
-        assertFalse(model.state.value.hasAccess)
+        assertTrue(model.state.value.hasAccess)
+        assertTrue(model.state.value.isGuest)
         assertNull(auth.user.value)
         assertEquals(SessionMessage.PREFERENCES_FAILED, model.state.value.message)
     }
@@ -265,11 +273,11 @@ class AppSessionViewModelTest {
         override val status = MutableStateFlow(CloudSyncStatus.LOCAL_ONLY)
         override val restoredThemes = MutableSharedFlow<ThemeMode>()
         override suspend fun activateGuest() {
-            owner.value = DataOwner.Guest
+            owner.value = DataOwner.local(owner.value.localId)
             status.value = CloudSyncStatus.LOCAL_ONLY
         }
-        override suspend fun activateAccount(firebaseUid: String, migrateGuestData: Boolean) {
-            owner.value = DataOwner.account(firebaseUid)
+        override suspend fun activateAccount(firebaseUid: String) {
+            owner.value = DataOwner.account(firebaseUid, owner.value.localId)
             status.value = CloudSyncStatus.SYNCED
         }
         override fun requestUpload() = Unit

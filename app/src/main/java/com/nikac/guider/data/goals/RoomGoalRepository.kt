@@ -55,7 +55,7 @@ class RoomGoalRepository private constructor(
             achievedDayKey = null,
             startDayKey = periodicStart,
             endDayKey = periodicEnd,
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         val goalId = goalDao.insert(entity)
 
@@ -72,7 +72,7 @@ class RoomGoalRepository private constructor(
                         linkedGoalId = goalId,
                         activeStartDayKey = periodicStart,
                         activeEndDayKey = periodicEnd,
-                        syncPending = currentOwner.usesCloud,
+                        syncPending = true,
                     ),
                 )
                 habitDao.insertWeekdays(
@@ -93,7 +93,7 @@ class RoomGoalRepository private constructor(
             goalId = goalId,
             dayKey = dayKey,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         notifyCloud(currentOwner)
     }
@@ -104,7 +104,7 @@ class RoomGoalRepository private constructor(
             ownerId = currentOwner.localId,
             dayKey = dayKey,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            syncPending = currentOwner.usesCloud,
+            syncPending = true,
         )
         if (changed > 0) notifyCloud(currentOwner)
     }
@@ -117,25 +117,25 @@ class RoomGoalRepository private constructor(
                 ownerId = currentOwner.localId,
                 goalId = goalId,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             habitDao.softDeleteCompletionsForGoal(
                 ownerId = currentOwner.localId,
                 goalId = goalId,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             habitDao.softDeleteForGoal(
                 ownerId = currentOwner.localId,
                 goalId = goalId,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             goalDao.softDelete(
                 ownerId = currentOwner.localId,
                 goalId = goalId,
                 updatedAtEpochMillis = now,
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
         }
         notifyCloud(currentOwner)
@@ -159,7 +159,7 @@ class RoomGoalRepository private constructor(
                 ownerId = currentOwner.localId,
                 dayKey = DayKeys.today(),
                 updatedAtEpochMillis = System.currentTimeMillis(),
-                syncPending = currentOwner.usesCloud,
+                syncPending = true,
             )
             if (archived > 0 && currentOwner.usesCloud) onDataChanged()
             val goals = owner.flatMapLatest { activeOwner ->

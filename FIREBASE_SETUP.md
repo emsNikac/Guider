@@ -27,20 +27,24 @@ with the APK; Firestore Security Rules are the data-access boundary.
 
 ## Data behavior
 
-- Guests use the local owner namespace. Uninstalling Guider or clearing its app data deletes
-  guest progress permanently.
+- Guider always writes progress to Room first. Signing in attaches cloud backup to the same
+  on-device dataset; signing out detaches cloud backup without moving, hiding, or deleting data.
+- While signed out, changes stay pending locally. They are uploaded automatically if the user
+  signs back into the account connected to that dataset.
+- A user who has never signed in is local-only. Uninstalling Guider or clearing its app data
+  deletes that progress permanently.
 - Android Auto Backup and device-transfer backup are disabled intentionally, preventing guest
   progress and authentication state from returning after reinstall.
-- When a guest signs in, guest tasks, goals, habits, completions, sleep history, the current
-  sleep session, money periods, and spendings are moved into that Firebase account.
+- When a local-only user signs in, tasks, goals, habits, completions, sleep history, the current
+  sleep session, money periods, and spendings are backed up to that Firebase account.
 - Signed-in changes are written to Room first and then uploaded. Pending changes remain marked
   locally until Firestore acknowledges the write.
 - Firestore listeners restore changes from other devices. A network-constrained WorkManager
   job retries synchronization periodically, and Settings also provides **Sync now**.
 - Task and one-time-goal cleanup archives records instead of deleting their history. Restarting
   money tracking closes the current period and creates another instead of erasing spendings.
-- Each account uses a separate local owner ID. Signing out hides account data without deleting
-  its cloud backup; guest data and other accounts cannot query it.
+- The active device dataset remains visible after sign-out and continues in local-only mode.
+  Firestore rules still isolate every cloud backup by Firebase user ID.
 - Theme mode is saved locally and synchronized for signed-in users. Transient UI state,
   notification permissions, Firebase tokens, and WorkManager internals are not synchronized.
 
